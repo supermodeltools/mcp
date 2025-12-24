@@ -1,7 +1,7 @@
 {
   "name": "@supermodeltools/mcp-server",
-  "version": "0.0.1",
-  "description": "Standalone MCP Server for Supermodel API using OpenAPI SDK",
+  "version": "0.0.2",
+  "description": "Standalone MCP Server for Supermodel API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

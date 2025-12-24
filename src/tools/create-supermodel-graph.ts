@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { createReadStream } from 'fs';
+import { readFile } from 'fs/promises';
 import {
   Metadata,
   Endpoint,
@@ -61,36 +61,57 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   }
 
   try {
-    // We are guessing the signature here as: createSupermodelGraph({ file: blob, idempotencyKey })
-    // Based on the generated interface:
-    // export interface GenerateSupermodelGraphRequest {
-    //    idempotencyKey: string;
-    //    file: Blob;
-    // }
-    // generateSupermodelGraph(requestParameters: GenerateSupermodelGraphRequest, ...)
-    
-    // Note: Node.js fs.createReadStream returns a ReadStream, which is not exactly a Blob in the browser sense.
-    // However, many Node fetch polyfills handle ReadStream as Blob or BodyInit.
-    // The OpenAPI generator for typescript-fetch often expects Blob | File.
-    // In Node environments with node-fetch, streams often work.
-    
-    // Check if we need to convert to Blob.
-    const fileStream = createReadStream(file);
-    
+    // Read the file into a Buffer and convert to Blob
+    // The SDK expects a Blob type, not a stream
+    console.error('[DEBUG] Reading file:', file);
+    const fileBuffer = await readFile(file);
+
+    // Create a Blob from the buffer
+    // In Node.js 18+, Blob is available globally
+    const fileBlob = new Blob([fileBuffer], { type: 'application/zip' });
+
+    console.error('[DEBUG] File size:', fileBuffer.length, 'bytes');
+    console.error('[DEBUG] Making API request with idempotency key:', idempotencyKey);
+
     // Construct the request object
     const requestParams = {
-        file: fileStream as any, // Cast to any/Blob
+        file: fileBlob as any,
         idempotencyKey: idempotencyKey
     };
 
     const response = await client.graphs.generateSupermodelGraph(requestParams);
+
+    console.error('[DEBUG] API request successful');
 
     return asTextContentResult(await maybeFilter(jq_filter, response));
   } catch (error: any) {
     if (isJqError(error)) {
       return asErrorResult(error.message);
     }
-    return asErrorResult(error.message || String(error));
+
+    // Enhanced error logging
+    console.error('[ERROR] API call failed:', error);
+    console.error('[ERROR] Error name:', error.name);
+    console.error('[ERROR] Error message:', error.message);
+    console.error('[ERROR] Error stack:', error.stack);
+
+    if (error.response) {
+      console.error('[ERROR] Response status:', error.response.status);
+      console.error('[ERROR] Response statusText:', error.response.statusText);
+      console.error('[ERROR] Response headers:', error.response.headers);
+      try {
+        const responseText = await error.response.text();
+        console.error('[ERROR] Response body:', responseText);
+      } catch (e) {
+        console.error('[ERROR] Could not read response body');
+      }
+    }
+
+    if (error.request) {
+      console.error('[ERROR] Request was made but no response received');
+    }
+
+    return asErrorResult(`API call failed: ${error.message || String(error)}. Check server logs for details.`);
   }
 };
 
