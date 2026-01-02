@@ -2,6 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/@supermodeltools/mcp-server)](https://www.npmjs.com/package/@supermodeltools/mcp-server)
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
+[![CI](https://github.com/supermodeltools/mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/supermodeltools/mcp/actions/workflows/ci.yml)
 
 MCP server that exposes [Supermodel API](https://docs.supermodeltools.com) graph generation to AI agents. Generates dependency graphs, call graphs, domain models, and full Supermodel IR from code repositories.
 
