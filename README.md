@@ -19,13 +19,9 @@ npx @supermodeltools/mcp-server
 
 ## Configuration
 
-Set your API credentials via environment variables:
-
 | Variable | Description |
 |----------|-------------|
 | `SUPERMODEL_API_KEY` | Your Supermodel API key (required) |
-| `SUPERMODEL_BEARER_TOKEN` | Bearer token for authentication |
-| `SUPERMODEL_AUTH_TOKEN` | Alternative bearer token (fallback) |
 | `SUPERMODEL_BASE_URL` | Override API base URL (optional) |
 
 ## Usage
@@ -103,7 +99,7 @@ Debug logs go to stderr:
 
 **Common issues:**
 - 401: Check `SUPERMODEL_API_KEY` is set
-- ZIP too large: Ensure node_modules/dist excluded (use `git archive`)
+- ZIP too large: Exclude node_modules/dist (use `git archive`)
 
 ## Links
 

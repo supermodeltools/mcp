@@ -25,17 +25,11 @@ export class Server {
     const config = new Configuration({
       basePath: process.env.SUPERMODEL_BASE_URL || 'https://api.supermodeltools.com',
       apiKey: process.env.SUPERMODEL_API_KEY,
-      headers: {
-         // Add any custom headers here
-      },
-      accessToken: process.env.SUPERMODEL_BEARER_TOKEN || process.env.SUPERMODEL_AUTH_TOKEN
     });
 
-    // Debug logging for configuration
     console.error('[DEBUG] Server configuration:');
     console.error('[DEBUG] Base URL:', config.basePath);
     console.error('[DEBUG] API Key set:', !!process.env.SUPERMODEL_API_KEY);
-    console.error('[DEBUG] Bearer token set:', !!(process.env.SUPERMODEL_BEARER_TOKEN || process.env.SUPERMODEL_AUTH_TOKEN));
 
     this.client = {
       graphs: new DefaultApi(config),
