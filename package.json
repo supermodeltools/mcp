@@ -1,13 +1,38 @@
 {
   "name": "@supermodeltools/mcp-server",
   "version": "0.0.2",
-  "description": "Standalone MCP Server for Supermodel API",
+  "description": "MCP server for Supermodel API - code graph generation for AI agents",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "supermodel-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/supermodeltools/mcp.git"
+  },
+  "homepage": "https://docs.supermodeltools.com",
+  "bugs": {
+    "url": "https://github.com/supermodeltools/mcp/issues"
+  },
+  "license": "UNLICENSED",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "supermodel",
+    "ai-agent",
+    "code-analysis",
+    "cursor",
+    "claude"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.1",
     "@supermodeltools/sdk": "^0.3.8",
