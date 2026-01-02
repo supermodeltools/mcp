@@ -19,6 +19,8 @@ npx @supermodeltools/mcp-server
 
 ## Configuration
 
+Get your API key from the [Supermodel Dashboard](https://supermodeltools.com/dashboard).
+
 | Variable | Description |
 |----------|-------------|
 | `SUPERMODEL_API_KEY` | Your Supermodel API key (required) |
