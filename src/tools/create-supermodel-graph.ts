@@ -10,6 +10,7 @@ import {
   ClientContext
 } from '../types';
 import { maybeFilter, isJqError } from '../filtering';
+import { executeQuery, getAvailableQueries, isQueryError, QueryType } from '../queries';
 
 export const metadata: Metadata = {
   resource: 'graphs',
@@ -23,7 +24,41 @@ export const metadata: Metadata = {
 export const tool: Tool = {
   name: 'analyze_codebase',
   description:
-    "Analyze code structure, dependencies, and relationships across a repository.\n\nUSE THIS TOOL WHEN:\n- Exploring an unfamiliar codebase to understand its architecture\n- Planning refactorings or assessing change impact across multiple files\n- Finding dependencies between modules, functions, or classes\n- Understanding call relationships and code flow patterns\n- Mapping domain models and system boundaries\n- Investigating how components interact before making changes\n\nPROVIDES:\nComprehensive code graphs including:\n- Module and package dependency relationships\n- Function-level call hierarchies\n- Domain classifications and architectural patterns\n- AST-level structural relationships\n- Summary statistics (file counts, languages, complexity)\n\nREQUIRES:\n- file: Path to a ZIP archive of the repository (use `git archive -o /tmp/repo.zip HEAD` for git repos)\n- Idempotency-Key: Cache key in format {repo}:{type}:{hash} (e.g., myproject:supermodel:abc123)\n- jq_filter (optional but recommended): Filter to extract specific data and reduce response size\n\nALWAYS use jq_filter to extract only the data you need. The full response can be very large.\n\nExample filters:\n- '.graph.nodes[] | select(.type==\"function\")' - Extract only function nodes\n- '.summary' - Get just the summary statistics\n- '.graph.relationships[] | select(.type==\"calls\")' - Extract call relationships",
+    `Analyze code structure, dependencies, and relationships across a repository.
+
+USE THIS TOOL WHEN:
+- Exploring an unfamiliar codebase to understand its architecture
+- Planning refactorings or assessing change impact across multiple files
+- Finding dependencies between modules, functions, or classes
+- Understanding call relationships and code flow patterns
+- Mapping domain models and system boundaries
+- Investigating how components interact before making changes
+
+QUERY TYPES (use 'query' param):
+- graph_status: Check cache status and get summary if available
+- summary: High-level stats (files, classes, functions, etc.)
+- get_node: Get full details for a node by ID (requires targetId)
+- search: Find nodes by name substring (requires searchText)
+- list_nodes: List nodes with filters (labels, namePattern, filePathPrefix)
+- function_calls_in: Find all callers of a function (requires targetId)
+- function_calls_out: Find all functions called by a function (requires targetId)
+- definitions_in_file: Get classes/functions/types in a file (targetId or filePathPrefix)
+- file_imports: Get imports for a file (requires targetId)
+- domain_map: List all domains with relationships
+- domain_membership: Get members of a domain (targetId or searchText)
+- neighborhood: Get ego graph around a node (requires targetId)
+- jq: Raw jq filter escape hatch (requires jq_filter)
+
+WORKFLOW:
+1. First call with query=graph_status to check cache
+2. If not cached, call with query=summary to load graph and get overview
+3. Use search/list_nodes to find specific nodes
+4. Use function_calls_in/out to trace call relationships
+5. Results include node IDs - use get_node for full details
+
+REQUIRES:
+- file: Path to ZIP archive (use 'git archive -o /tmp/repo.zip HEAD')
+- Idempotency-Key: Cache key format {repo}:{type}:{hash}`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -35,11 +70,57 @@ export const tool: Tool = {
         type: 'string',
         description: 'Cache key in format {repo}:{type}:{hash}. Generate hash with: git rev-parse --short HEAD',
       },
+      query: {
+        type: 'string',
+        enum: [
+          'graph_status', 'summary', 'get_node', 'search', 'list_nodes',
+          'function_calls_in', 'function_calls_out', 'definitions_in_file',
+          'file_imports', 'domain_map', 'domain_membership', 'neighborhood', 'jq'
+        ],
+        description: 'Query type to execute. Use graph_status first to check cache, then summary to load.',
+      },
+      targetId: {
+        type: 'string',
+        description: 'Node ID for queries that operate on a specific node (get_node, function_calls_*, etc.)',
+      },
+      searchText: {
+        type: 'string',
+        description: 'Search text for name substring matching (search, domain_membership)',
+      },
+      namePattern: {
+        type: 'string',
+        description: 'Regex pattern for name matching (list_nodes)',
+      },
+      filePathPrefix: {
+        type: 'string',
+        description: 'Filter by file path prefix (list_nodes, definitions_in_file, search)',
+      },
+      labels: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Filter by node labels: Function, Class, Type, File, Domain, etc. (list_nodes, search)',
+      },
+      depth: {
+        type: 'number',
+        description: 'Traversal depth for neighborhood query (default 1, max 3)',
+      },
+      relationshipTypes: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Relationship types to traverse (neighborhood). Options: calls, IMPORTS',
+      },
+      limit: {
+        type: 'number',
+        description: 'Max results to return (default 200)',
+      },
+      includeRaw: {
+        type: 'boolean',
+        description: 'Include full raw node data in get_node response (default false)',
+      },
       jq_filter: {
         type: 'string',
         title: 'jq Filter',
-        description:
-          'A jq filter to extract specific fields from the response. STRONGLY RECOMMENDED to reduce response size.',
+        description: 'Raw jq filter for escape hatch queries or legacy mode (when query param not specified)',
       },
     },
     required: ['file', 'Idempotency-Key'],
@@ -51,7 +132,21 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     return asErrorResult('No arguments provided');
   }
 
-  const { jq_filter, file, 'Idempotency-Key': idempotencyKey } = args as any;
+  const {
+    jq_filter,
+    file,
+    'Idempotency-Key': idempotencyKey,
+    query,
+    targetId,
+    searchText,
+    namePattern,
+    filePathPrefix,
+    labels,
+    depth,
+    relationshipTypes,
+    limit,
+    includeRaw,
+  } = args as any;
 
   if (!file || typeof file !== 'string') {
     return asErrorResult('File argument is required and must be a string path');
@@ -61,29 +156,232 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     return asErrorResult('Idempotency-Key argument is required');
   }
 
-  try {
-    // Read the file into a Buffer and convert to Blob
-    // The SDK expects a Blob type, not a stream
-    console.error('[DEBUG] Reading file:', file);
-    const fileBuffer = await readFile(file);
+  // If query param is specified, use the new query engine
+  if (query) {
+    return handleQueryMode(client, {
+      query: query as QueryType,
+      file,
+      idempotencyKey,
+      targetId,
+      searchText,
+      namePattern,
+      filePathPrefix,
+      labels,
+      depth,
+      relationshipTypes,
+      limit,
+      includeRaw,
+      jq_filter,
+    });
+  }
 
-    // Create a Blob from the buffer
-    // In Node.js 18+, Blob is available globally
-    const fileBlob = new Blob([fileBuffer], { type: 'application/zip' });
+  // Legacy mode: use jq_filter directly on API response
+  return handleLegacyMode(client, file, idempotencyKey, jq_filter);
+};
 
-    console.error('[DEBUG] File size:', fileBuffer.length, 'bytes');
-    console.error('[DEBUG] Making API request with idempotency key:', idempotencyKey);
+/**
+ * Handle query-based requests using the query engine
+ */
+async function handleQueryMode(
+  client: ClientContext,
+  params: {
+    query: QueryType;
+    file: string;
+    idempotencyKey: string;
+    targetId?: string;
+    searchText?: string;
+    namePattern?: string;
+    filePathPrefix?: string;
+    labels?: string[];
+    depth?: number;
+    relationshipTypes?: string[];
+    limit?: number;
+    includeRaw?: boolean;
+    jq_filter?: string;
+  }
+): Promise<ReturnType<typeof asTextContentResult>> {
+  const queryParams = {
+    query: params.query,
+    file: params.file,
+    idempotencyKey: params.idempotencyKey,
+    targetId: params.targetId,
+    searchText: params.searchText,
+    namePattern: params.namePattern,
+    filePathPrefix: params.filePathPrefix,
+    labels: params.labels,
+    depth: params.depth,
+    relationshipTypes: params.relationshipTypes,
+    limit: params.limit,
+    includeRaw: params.includeRaw,
+    jq_filter: params.jq_filter,
+  };
 
-    // Construct the request object
-    const requestParams = {
-        file: fileBlob as any,
-        idempotencyKey: idempotencyKey
+  // First, try to execute query from cache
+  let result = await executeQuery(queryParams);
+
+  // If cache miss, fetch from API and retry
+  if (isQueryError(result) && result.error.code === 'CACHE_MISS') {
+    console.error('[DEBUG] Cache miss, fetching from API...');
+
+    try {
+      const apiResponse = await fetchFromApi(client, params.file, params.idempotencyKey);
+      result = await executeQuery(queryParams, apiResponse);
+    } catch (error: any) {
+      return asErrorResult(`API call failed: ${error.message || String(error)}`);
+    }
+  }
+
+  // Handle query errors
+  if (isQueryError(result)) {
+    // Include hints for common errors
+    const errorWithHints = {
+      ...result,
+      hints: getErrorHints(result.error.code, params.query),
     };
+    return asTextContentResult(errorWithHints);
+  }
 
-    const response = await client.graphs.generateSupermodelGraph(requestParams);
+  // Add breadcrumb hints to successful results
+  const resultWithHints = addBreadcrumbHints(result, params.query);
 
-    console.error('[DEBUG] API request successful');
+  return asTextContentResult(resultWithHints);
+}
 
+/**
+ * Add breadcrumb hints to query results for agent navigation
+ */
+function addBreadcrumbHints(result: any, queryType: QueryType): any {
+  const hints: string[] = [];
+
+  switch (queryType) {
+    case 'summary':
+      hints.push(
+        'NEXT: Use search with searchText to find specific functions/classes',
+        'NEXT: Use list_nodes with labels=["Function"] to browse all functions',
+        'NEXT: Use domain_map to see architectural domains'
+      );
+      break;
+
+    case 'search':
+    case 'list_nodes':
+      if (result.result?.nodes?.length > 0) {
+        hints.push(
+          'NEXT: Use get_node with targetId to get full details for any node',
+          'NEXT: Use function_calls_in with targetId to see who calls a function',
+          'NEXT: Use function_calls_out with targetId to see what a function calls'
+        );
+      }
+      break;
+
+    case 'get_node':
+      if (result.result?.node) {
+        const label = result.result.node.label;
+        if (label === 'Function') {
+          hints.push(
+            'NEXT: Use function_calls_in to see callers of this function',
+            'NEXT: Use function_calls_out to see functions this calls',
+            'NEXT: Use neighborhood with depth=2 to see call graph around this function'
+          );
+        } else if (label === 'File') {
+          hints.push(
+            'NEXT: Use definitions_in_file to see all definitions in this file',
+            'NEXT: Use file_imports to see import relationships'
+          );
+        } else if (label === 'Domain') {
+          hints.push(
+            'NEXT: Use domain_membership to see all members of this domain'
+          );
+        }
+      }
+      break;
+
+    case 'function_calls_in':
+    case 'function_calls_out':
+      if (result.result?.nodes?.length > 0) {
+        hints.push(
+          'NEXT: Use get_node with any caller/callee ID for full details',
+          'NEXT: Chain function_calls_in/out to trace deeper call paths',
+          'NEXT: Use neighborhood for broader call graph exploration'
+        );
+      }
+      break;
+
+    case 'definitions_in_file':
+      hints.push(
+        'NEXT: Use function_calls_in/out on any function ID to trace calls',
+        'NEXT: Use get_node for full details on any definition'
+      );
+      break;
+
+    case 'domain_map':
+      hints.push(
+        'NEXT: Use domain_membership with domain name to see members',
+        'NEXT: Use search to find specific functions within a domain'
+      );
+      break;
+  }
+
+  if (hints.length > 0) {
+    return { ...result, hints };
+  }
+
+  return result;
+}
+
+/**
+ * Get hints for specific error conditions
+ */
+function getErrorHints(errorCode: string, queryType: QueryType): string[] {
+  switch (errorCode) {
+    case 'NOT_FOUND':
+      return [
+        'Use search with searchText to find nodes by name',
+        'Use list_nodes with labels filter to browse available nodes',
+        'Check the targetId format - it should be the full node ID from a previous query'
+      ];
+    case 'INVALID_PARAMS':
+      return [
+        `Query '${queryType}' may require specific parameters`,
+        'Use graph_status to see available query types and their requirements'
+      ];
+    default:
+      return [];
+  }
+}
+
+/**
+ * Fetch graph from API
+ */
+async function fetchFromApi(client: ClientContext, file: string, idempotencyKey: string): Promise<any> {
+  console.error('[DEBUG] Reading file:', file);
+  const fileBuffer = await readFile(file);
+  const fileBlob = new Blob([fileBuffer], { type: 'application/zip' });
+
+  console.error('[DEBUG] File size:', fileBuffer.length, 'bytes');
+  console.error('[DEBUG] Making API request with idempotency key:', idempotencyKey);
+
+  const requestParams = {
+    file: fileBlob as any,
+    idempotencyKey: idempotencyKey,
+  };
+
+  const response = await client.graphs.generateSupermodelGraph(requestParams);
+  console.error('[DEBUG] API request successful');
+
+  return response;
+}
+
+/**
+ * Legacy mode: direct jq filtering on API response
+ */
+async function handleLegacyMode(
+  client: ClientContext,
+  file: string,
+  idempotencyKey: string,
+  jq_filter?: string
+): Promise<ReturnType<typeof asTextContentResult>> {
+  try {
+    const response = await fetchFromApi(client, file, idempotencyKey);
     return asTextContentResult(await maybeFilter(jq_filter, response));
   } catch (error: any) {
     if (isJqError(error)) {
@@ -114,6 +412,6 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
 
     return asErrorResult(`API call failed: ${error.message || String(error)}. Check server logs for details.`);
   }
-};
+}
 
 export default { metadata, tool, handler };
