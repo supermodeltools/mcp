@@ -278,29 +278,58 @@ export function fileImports(
     return createError('INVALID_PARAMS', `Node '${params.targetId}' is not a File/Module (got ${label})`);
   }
 
-  const adj = graph.importAdj.get(params.targetId);
-  if (!adj) {
-    return createResponse(
-      'file_imports',
-      graph.cacheKey,
-      source,
-      graph.cachedAt,
-      { imports: { nodes: [] }, importedBy: { nodes: [] } }
-    );
+  const limit = params.limit || DEFAULT_LIMIT;
+  const outIds = new Set<string>();
+  const inIds = new Set<string>();
+
+  const addAdjacency = (nodeId: string) => {
+    const adj = graph.importAdj.get(nodeId);
+    if (!adj) return;
+
+    for (const outId of adj.out) {
+      outIds.add(outId);
+    }
+    for (const inId of adj.in) {
+      inIds.add(inId);
+    }
+  };
+
+  // Always include adjacency directly attached to the target node.
+  addAdjacency(params.targetId);
+
+  // If the target is a File node, also aggregate IMPORTS edges attached to
+  // definitions within the file. This handles graphs where IMPORTS edges
+  // are modeled as Function -> Module rather than File -> Module.
+  if (label === 'File') {
+    const filePathRaw =
+      (targetNode.properties?.filePath as string | undefined) ||
+      (targetNode.properties?.path as string | undefined) ||
+      '';
+    const filePath = normalizePath(filePathRaw);
+    const entry = graph.pathIndex.get(filePath);
+    if (entry) {
+      for (const id of entry.functionIds) addAdjacency(id);
+      for (const id of entry.classIds) addAdjacency(id);
+      for (const id of entry.typeIds) addAdjacency(id);
+    }
   }
 
-  const limit = params.limit || DEFAULT_LIMIT;
-
   const imports: NodeDescriptor[] = [];
-  for (const id of adj.out.slice(0, limit)) {
+  for (const id of outIds) {
+    if (imports.length >= limit) break;
     const node = graph.nodeById.get(id);
-    if (node) imports.push(toNodeDescriptor(node));
+    if (node) {
+      imports.push(toNodeDescriptor(node));
+    }
   }
 
   const importedBy: NodeDescriptor[] = [];
-  for (const id of adj.in.slice(0, limit)) {
+  for (const id of inIds) {
+    if (importedBy.length >= limit) break;
     const node = graph.nodeById.get(id);
-    if (node) importedBy.push(toNodeDescriptor(node));
+    if (node) {
+      importedBy.push(toNodeDescriptor(node));
+    }
   }
 
   return createResponse(
@@ -308,7 +337,16 @@ export function fileImports(
     graph.cacheKey,
     source,
     graph.cachedAt,
-    { imports: { nodes: imports }, importedBy: { nodes: importedBy } }
+    { imports: { nodes: imports }, importedBy: { nodes: importedBy } },
+    {
+      page: { limit, hasMore: outIds.size > limit || inIds.size > limit },
+      warnings:
+        label === 'File' && outIds.size === 0 && inIds.size === 0
+          ? [
+              'No IMPORTS edges found directly on the File node or on its contained definitions. This may reflect graph modeling choices for this repository.',
+            ]
+          : undefined,
+    }
   );
 }
 

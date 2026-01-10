@@ -180,12 +180,21 @@ export function buildIndexes(raw: SupermodelIR, cacheKey: string): IndexedGraph 
 
     // Import adjacency
     if (type === 'IMPORTS') {
-      if (importAdj.has(startNode)) {
-        importAdj.get(startNode)!.out.push(endNode);
+      // Some graphs emit IMPORTS edges from non-File nodes (e.g. Function -> Module).
+      // Create adjacency lazily for any node that participates.
+      let startAdj = importAdj.get(startNode);
+      if (!startAdj) {
+        startAdj = { out: [], in: [] };
+        importAdj.set(startNode, startAdj);
       }
-      if (importAdj.has(endNode)) {
-        importAdj.get(endNode)!.in.push(startNode);
+      startAdj.out.push(endNode);
+
+      let endAdj = importAdj.get(endNode);
+      if (!endAdj) {
+        endAdj = { out: [], in: [] };
+        importAdj.set(endNode, endAdj);
       }
+      endAdj.in.push(startNode);
     }
 
     // Directory contains
