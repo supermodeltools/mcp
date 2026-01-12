@@ -275,7 +275,7 @@ function addBreadcrumbHints(result: any, queryType: QueryType): any {
 
     case 'get_node':
       if (result.result?.node) {
-        const label = result.result.node.label;
+        const label = result.result.node.labels?.[0];
         if (label === 'Function') {
           hints.push(
             'NEXT: Use function_calls_in to see callers of this function',
