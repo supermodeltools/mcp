@@ -1,4 +1,5 @@
 node_modules
 dist
 *.zip
-test_file.txt.DS_Store
+test_file.txt
+.DS_Store
