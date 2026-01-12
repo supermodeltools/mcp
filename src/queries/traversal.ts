@@ -263,7 +263,7 @@ export function fileImports(
   params: QueryParams,
   graph: IndexedGraph,
   source: 'cache' | 'api'
-): QueryResponse<{ imports: NodesResult; importedBy: NodesResult }> | QueryError {
+): QueryResponse<{ imports: NodesResult }> | QueryError {
   if (!params.targetId) {
     return createError('INVALID_PARAMS', 'targetId is required for file_imports query');
   }
@@ -280,22 +280,18 @@ export function fileImports(
 
   const limit = params.limit || DEFAULT_LIMIT;
   const outIds = new Set<string>();
-  const inIds = new Set<string>();
 
-  const addAdjacency = (nodeId: string) => {
+  const addOutgoingImports = (nodeId: string) => {
     const adj = graph.importAdj.get(nodeId);
     if (!adj) return;
 
     for (const outId of adj.out) {
       outIds.add(outId);
     }
-    for (const inId of adj.in) {
-      inIds.add(inId);
-    }
   };
 
-  // Always include adjacency directly attached to the target node.
-  addAdjacency(params.targetId);
+  // Always include imports directly attached to the target node.
+  addOutgoingImports(params.targetId);
 
   // If the target is a File node, also aggregate IMPORTS edges attached to
   // definitions within the file. This handles graphs where IMPORTS edges
@@ -308,9 +304,9 @@ export function fileImports(
     const filePath = normalizePath(filePathRaw);
     const entry = graph.pathIndex.get(filePath);
     if (entry) {
-      for (const id of entry.functionIds) addAdjacency(id);
-      for (const id of entry.classIds) addAdjacency(id);
-      for (const id of entry.typeIds) addAdjacency(id);
+      for (const id of entry.functionIds) addOutgoingImports(id);
+      for (const id of entry.classIds) addOutgoingImports(id);
+      for (const id of entry.typeIds) addOutgoingImports(id);
     }
   }
 
@@ -323,25 +319,18 @@ export function fileImports(
     }
   }
 
-  const importedBy: NodeDescriptor[] = [];
-  for (const id of inIds) {
-    if (importedBy.length >= limit) break;
-    const node = graph.nodeById.get(id);
-    if (node) {
-      importedBy.push(toNodeDescriptor(node));
-    }
-  }
+  const hasMore = outIds.size > limit;
 
   return createResponse(
     'file_imports',
     graph.cacheKey,
     source,
     graph.cachedAt,
-    { imports: { nodes: imports }, importedBy: { nodes: importedBy } },
+    { imports: { nodes: imports } },
     {
-      page: { limit, hasMore: outIds.size > limit || inIds.size > limit },
+      page: { limit, hasMore },
       warnings:
-        label === 'File' && outIds.size === 0 && inIds.size === 0
+        label === 'File' && outIds.size === 0
           ? [
               'No IMPORTS edges found directly on the File node or on its contained definitions. This may reflect graph modeling choices for this repository.',
             ]
