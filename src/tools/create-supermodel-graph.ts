@@ -14,7 +14,7 @@ import {
   ClientContext
 } from '../types';
 import { maybeFilter, isJqError } from '../filtering';
-import { executeQuery, getAvailableQueries, isQueryError, QueryType } from '../queries';
+import { executeQuery, getAvailableQueries, isQueryError, QueryType, graphCache } from '../queries';
 import { zipRepository } from '../utils/zip-repository';
 
 export const metadata: Metadata = {
@@ -255,6 +255,50 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   } else {
     idempotencyKey = providedIdempotencyKey;
     console.error('[DEBUG] Using provided idempotency key:', idempotencyKey);
+  }
+
+  // Check if we can skip zipping (graph already cached)
+  const graphCached = graphCache.has(idempotencyKey);
+  if (graphCached && query) {
+    console.error('[DEBUG] Graph cached, skipping ZIP creation');
+    // Execute query directly from cache
+    const result = await handleQueryMode(client, {
+      query: query as QueryType,
+      file: '', // Not needed for cache hit
+      idempotencyKey,
+      targetId,
+      searchText,
+      namePattern,
+      filePathPrefix,
+      labels,
+      depth,
+      relationshipTypes,
+      limit,
+      includeRaw,
+      jq_filter,
+    });
+
+    // Add metadata about cache hit
+    if (keyGenerated && result.content?.[0]?.type === 'text') {
+      const originalText = result.content[0].text;
+      let responseData;
+
+      try {
+        responseData = JSON.parse(originalText);
+        // Add metadata about auto-generated key
+        responseData._metadata = {
+          ...responseData._metadata,
+          idempotencyKey,
+          idempotencyKeyGenerated: true
+        };
+        result.content[0].text = JSON.stringify(responseData, null, 2);
+      } catch {
+        // Not JSON, prepend key info as text
+        result.content[0].text = `[Auto-generated Idempotency-Key: ${idempotencyKey}]\n\n${originalText}`;
+      }
+    }
+
+    return result;
   }
 
   console.error('[DEBUG] Auto-zipping directory:', directory);
