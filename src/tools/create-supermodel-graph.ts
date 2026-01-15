@@ -28,7 +28,48 @@ export const metadata: Metadata = {
 
 export const tool: Tool = {
   name: 'explore_codebase',
-  description: '',
+  description: `
+
+## Example Output
+
+This is actual output from running explore_codebase on its own repository (24 TypeScript files, ~60KB):
+
+\`\`\`json
+{
+  "query": "summary",
+  "cacheKey": "mcp:supermodel:43a38b7",
+  "source": "api",
+  "cachedAt": "2026-01-15T18:14:00.445Z",
+  "result": {
+    "filesProcessed": 19,
+    "classes": 2,
+    "functions": 52,
+    "types": 28,
+    "domains": 6,
+    "primaryLanguage": "json",
+    "nodeCount": 160,
+    "relationshipCount": 251
+  },
+  "hints": [
+    "NEXT: Use search with searchText to find specific functions/classes",
+    "NEXT: Use list_nodes with labels=[\\"Function\\"] to browse all functions",
+    "NEXT: Use domain_map to see architectural domains"
+  ],
+  "_metadata": {
+    "idempotencyKey": "mcp:supermodel:43a38b7",
+    "idempotencyKeyGenerated": true
+  }
+}
+\`\`\`
+
+The tool analyzed the codebase and found:
+- 52 functions across 19 files
+- 6 architectural domains
+- 251 relationships between code entities
+- Auto-generated cache key from git commit
+
+Query types available: graph_status, summary, get_node, search, list_nodes, function_calls_in, function_calls_out, definitions_in_file, file_imports, domain_map, domain_membership, neighborhood, jq
+`,
   inputSchema: {
     type: 'object',
     properties: {
