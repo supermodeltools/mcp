@@ -43,50 +43,50 @@ export const tool: Tool = {
           'function_calls_in', 'function_calls_out', 'definitions_in_file',
           'file_imports', 'domain_map', 'domain_membership', 'neighborhood', 'jq'
         ],
-        description: '',
+        description: 'Query type to execute. Use graph_status first to check cache, then summary to load.',
       },
       targetId: {
         type: 'string',
-        description: '',
+        description: 'Node ID for queries that operate on a specific node (get_node, function_calls_*, etc.)',
       },
       searchText: {
         type: 'string',
-        description: '',
+        description: 'Search text for name substring matching (search, domain_membership)',
       },
       namePattern: {
         type: 'string',
-        description: '',
+        description: 'Regex pattern for name matching (list_nodes)',
       },
       filePathPrefix: {
         type: 'string',
-        description: '',
+        description: 'Filter by file path prefix (list_nodes, definitions_in_file, search)',
       },
       labels: {
         type: 'array',
         items: { type: 'string' },
-        description: '',
+        description: 'Filter by node labels: Function, Class, Type, File, Domain, etc. (list_nodes, search)',
       },
       depth: {
         type: 'number',
-        description: '',
+        description: 'Traversal depth for neighborhood query (default 1, max 3)',
       },
       relationshipTypes: {
         type: 'array',
         items: { type: 'string' },
-        description: '',
+        description: 'Relationship types to traverse (neighborhood). Options: calls, IMPORTS',
       },
       limit: {
         type: 'number',
-        description: '',
+        description: 'Max results to return (default 200)',
       },
       includeRaw: {
         type: 'boolean',
-        description: '',
+        description: 'Include full raw node data in get_node response (default false)',
       },
       jq_filter: {
         type: 'string',
         title: 'jq Filter',
-        description: '',
+        description: 'Raw jq filter for escape hatch queries or legacy mode (when query param not specified)',
       },
     },
     required: ['directory', 'Idempotency-Key'],
