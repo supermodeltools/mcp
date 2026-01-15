@@ -40,7 +40,18 @@ export class Server {
 1. Generate a code graph of the given repository or a subset.
 2. Analyze the system domains to understand the high-level system architecture.
 3. Examine leaf nodes to see the structure of the broader tree.
-4. Use the graph like a map to navigate the codebase more efficiently than blind grepping.`,
+4. Use the graph like a map to navigate the codebase more efficiently than blind grepping.
+
+## Performance Optimization
+
+For localized bugs:
+1. Identify the affected subsystem from the issue description
+2. Analyze only that subdirectory (e.g., \`django/db\` instead of full repo)
+3. This is faster, uses less memory, and avoids ZIP size limits
+
+Example:
+- Full repo: directory="/repo" → 180MB, 50k nodes
+- Subsystem: directory="/repo/django/db" → 15MB, 3k nodes`,
       },
     );
 

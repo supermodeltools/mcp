@@ -114,7 +114,7 @@ Query types available: graph_status, summary, get_node, search, list_nodes, func
     properties: {
       directory: {
         type: 'string',
-        description: 'Path to the repository directory to analyze.',
+        description: 'Path to the repository directory to analyze. Can be a subdirectory for faster analysis and smaller graph size (e.g., "/repo/src/core" instead of "/repo").',
       },
       'Idempotency-Key': {
         type: 'string',
