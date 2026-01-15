@@ -30,7 +30,7 @@ export const tool: Tool = {
     properties: {
       directory: {
         type: 'string',
-        description: '',
+        description: 'Path to the repository directory to analyze.',
       },
       'Idempotency-Key': {
         type: 'string',
