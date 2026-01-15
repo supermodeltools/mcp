@@ -24,57 +24,21 @@ export const metadata: Metadata = {
 
 export const tool: Tool = {
   name: 'analyze_codebase',
-  description:
-    `Analyze code structure, dependencies, and relationships across a repository.
-
-USE THIS TOOL WHEN:
-- Exploring an unfamiliar codebase to understand its architecture
-- Planning refactorings or assessing change impact across multiple files
-- Finding dependencies between modules, functions, or classes
-- Understanding call relationships and code flow patterns
-- Mapping domain models and system boundaries
-- Investigating how components interact before making changes
-
-QUERY TYPES (use 'query' param):
-- graph_status: Check cache status and get summary if available
-- summary: High-level stats (files, classes, functions, etc.)
-- get_node: Get full details for a node by ID (requires targetId)
-- search: Find nodes by name substring (requires searchText)
-- list_nodes: List nodes with filters (labels, namePattern, filePathPrefix)
-- function_calls_in: Find all callers of a function (requires targetId)
-- function_calls_out: Find all functions called by a function (requires targetId)
-- definitions_in_file: Get classes/functions/types in a file (targetId or filePathPrefix)
-- file_imports: Get imports for a file (requires targetId)
-- domain_map: List all domains with relationships
-- domain_membership: Get members of a domain (targetId or searchText)
-- neighborhood: Get ego graph around a node (requires targetId)
-- jq: Raw jq filter escape hatch (requires jq_filter)
-
-WORKFLOW:
-1. First call with query=graph_status to check cache
-2. If not cached, call with query=summary to load graph and get overview
-3. Use search/list_nodes to find specific nodes
-4. Use function_calls_in/out to trace call relationships
-5. Results include node IDs - use get_node for full details
-
-REQUIRES:
-- directory: Path to repository directory (recommended - handles zipping automatically)
-  OR file: Path to pre-zipped archive (for backward compatibility)
-- Idempotency-Key: Cache key format {repo}:{type}:{hash}`,
+  description: 'Analyzes code structure, dependencies, and relationships in a repository.',
   inputSchema: {
     type: 'object',
     properties: {
       directory: {
         type: 'string',
-        description: 'Path to the repository directory to analyze. The tool will automatically create a ZIP archive respecting .gitignore and excluding sensitive files.',
+        description: 'Path to the repository directory to analyze.',
       },
       file: {
         type: 'string',
-        description: '[DEPRECATED] Path to a pre-zipped repository archive. Use "directory" instead for automatic zipping with gitignore support.',
+        description: 'Path to a pre-zipped repository archive.',
       },
       'Idempotency-Key': {
         type: 'string',
-        description: 'Cache key in format {repo}:{type}:{hash}. Generate hash with: git rev-parse --short HEAD',
+        description: 'Cache key in format {repo}:{type}:{hash}.',
       },
       query: {
         type: 'string',
@@ -83,50 +47,50 @@ REQUIRES:
           'function_calls_in', 'function_calls_out', 'definitions_in_file',
           'file_imports', 'domain_map', 'domain_membership', 'neighborhood', 'jq'
         ],
-        description: 'Query type to execute. Use graph_status first to check cache, then summary to load.',
+        description: 'Query type to execute.',
       },
       targetId: {
         type: 'string',
-        description: 'Node ID for queries that operate on a specific node (get_node, function_calls_*, etc.)',
+        description: 'Node ID for the target node.',
       },
       searchText: {
         type: 'string',
-        description: 'Search text for name substring matching (search, domain_membership)',
+        description: 'Text to search for in node names.',
       },
       namePattern: {
         type: 'string',
-        description: 'Regex pattern for name matching (list_nodes)',
+        description: 'Regex pattern for name matching.',
       },
       filePathPrefix: {
         type: 'string',
-        description: 'Filter by file path prefix (list_nodes, definitions_in_file, search)',
+        description: 'Filter by file path prefix.',
       },
       labels: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Filter by node labels: Function, Class, Type, File, Domain, etc. (list_nodes, search)',
+        description: 'Filter by node labels.',
       },
       depth: {
         type: 'number',
-        description: 'Traversal depth for neighborhood query (default 1, max 3)',
+        description: 'Traversal depth for neighborhood queries.',
       },
       relationshipTypes: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Relationship types to traverse (neighborhood). Options: calls, IMPORTS',
+        description: 'Relationship types to traverse.',
       },
       limit: {
         type: 'number',
-        description: 'Max results to return (default 200)',
+        description: 'Maximum number of results to return.',
       },
       includeRaw: {
         type: 'boolean',
-        description: 'Include full raw node data in get_node response (default false)',
+        description: 'Include full raw node data in response.',
       },
       jq_filter: {
         type: 'string',
         title: 'jq Filter',
-        description: 'Raw jq filter for escape hatch queries or legacy mode (when query param not specified)',
+        description: 'jq filter expression to apply to results.',
       },
     },
     required: ['Idempotency-Key'],
