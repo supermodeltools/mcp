@@ -11,6 +11,7 @@ import {
 } from '../types';
 import { maybeFilter, isJqError } from '../filtering';
 import { executeQuery, getAvailableQueries, isQueryError, QueryType } from '../queries';
+import { zipRepository } from '../utils/zip-repository';
 
 export const metadata: Metadata = {
   resource: 'graphs',
@@ -57,14 +58,19 @@ WORKFLOW:
 5. Results include node IDs - use get_node for full details
 
 REQUIRES:
-- file: Path to ZIP archive (use 'git archive -o /tmp/repo.zip HEAD')
+- directory: Path to repository directory (recommended - handles zipping automatically)
+  OR file: Path to pre-zipped archive (for backward compatibility)
 - Idempotency-Key: Cache key format {repo}:{type}:{hash}`,
   inputSchema: {
     type: 'object',
     properties: {
+      directory: {
+        type: 'string',
+        description: 'Path to the repository directory to analyze. The tool will automatically create a ZIP archive respecting .gitignore and excluding sensitive files.',
+      },
       file: {
         type: 'string',
-        description: 'Path to the zipped repository archive containing the code to analyze.',
+        description: '[DEPRECATED] Path to a pre-zipped repository archive. Use "directory" instead for automatic zipping with gitignore support.',
       },
       'Idempotency-Key': {
         type: 'string',
@@ -123,7 +129,7 @@ REQUIRES:
         description: 'Raw jq filter for escape hatch queries or legacy mode (when query param not specified)',
       },
     },
-    required: ['file', 'Idempotency-Key'],
+    required: ['Idempotency-Key'],
   },
 };
 
@@ -135,6 +141,7 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   const {
     jq_filter,
     file,
+    directory,
     'Idempotency-Key': idempotencyKey,
     query,
     targetId,
@@ -148,36 +155,106 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     includeRaw,
   } = args as any;
 
-  if (!file || typeof file !== 'string') {
-    return asErrorResult('File argument is required and must be a string path');
-  }
-
+  // Validate idempotency key
   if (!idempotencyKey || typeof idempotencyKey !== 'string') {
     return asErrorResult('Idempotency-Key argument is required');
   }
 
-  // If query param is specified, use the new query engine
-  if (query) {
-    return handleQueryMode(client, {
-      query: query as QueryType,
-      file,
-      idempotencyKey,
-      targetId,
-      searchText,
-      namePattern,
-      filePathPrefix,
-      labels,
-      depth,
-      relationshipTypes,
-      limit,
-      includeRaw,
-      jq_filter,
-    });
+  // Validate that either directory or file is provided
+  if (!directory && !file) {
+    return asErrorResult('Either "directory" or "file" parameter is required');
   }
 
-  // Legacy mode: use jq_filter directly on API response
-  return handleLegacyMode(client, file, idempotencyKey, jq_filter);
+  if (directory && file) {
+    return asErrorResult('Provide either "directory" or "file", not both');
+  }
+
+  // Handle auto-zipping if directory is provided
+  let zipPath: string;
+  let shouldCleanup = false;
+  let cleanup: (() => Promise<void>) | null = null;
+
+  if (directory) {
+    if (typeof directory !== 'string') {
+      return asErrorResult('Directory argument must be a string path');
+    }
+
+    console.error('[DEBUG] Auto-zipping directory:', directory);
+
+    try {
+      const zipResult = await zipRepository(directory);
+      zipPath = zipResult.path;
+      cleanup = zipResult.cleanup;
+      shouldCleanup = true;
+
+      console.error('[DEBUG] Auto-zip complete:', zipResult.fileCount, 'files,', formatBytes(zipResult.sizeBytes));
+    } catch (error: any) {
+      console.error('[ERROR] Auto-zip failed:', error.message);
+
+      // Provide helpful error messages
+      if (error.message.includes('does not exist')) {
+        return asErrorResult(`Directory does not exist: ${directory}`);
+      }
+      if (error.message.includes('Permission denied')) {
+        return asErrorResult(`Permission denied accessing directory: ${directory}`);
+      }
+      if (error.message.includes('exceeds limit')) {
+        return asErrorResult(error.message);
+      }
+      if (error.message.includes('ENOSPC')) {
+        return asErrorResult('Insufficient disk space to create ZIP archive');
+      }
+
+      return asErrorResult(`Failed to create ZIP archive: ${error.message}`);
+    }
+  } else {
+    // Use provided file path
+    if (typeof file !== 'string') {
+      return asErrorResult('File argument must be a string path');
+    }
+    zipPath = file;
+  }
+
+  // Execute query with cleanup handling
+  try {
+    // If query param is specified, use the new query engine
+    if (query) {
+      return await handleQueryMode(client, {
+        query: query as QueryType,
+        file: zipPath,
+        idempotencyKey,
+        targetId,
+        searchText,
+        namePattern,
+        filePathPrefix,
+        labels,
+        depth,
+        relationshipTypes,
+        limit,
+        includeRaw,
+        jq_filter,
+      });
+    }
+
+    // Legacy mode: use jq_filter directly on API response
+    return await handleLegacyMode(client, zipPath, idempotencyKey, jq_filter);
+  } finally {
+    // Always cleanup temp ZIP files
+    if (shouldCleanup && cleanup) {
+      await cleanup();
+    }
+  }
 };
+
+/**
+ * Format bytes as human-readable string
+ */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
 
 /**
  * Handle query-based requests using the query engine
