@@ -32,41 +32,80 @@ export const tool: Tool = {
 
 ## Example Output
 
-This is actual output from running explore_codebase on its own repository (24 TypeScript files, ~60KB):
+This is actual output from running explore_codebase on its own repository (19 TypeScript files, ~60KB).
+
+The graph structure shows 163 nodes (Functions, Classes, Types, Files, Domains) and 254 relationships between them. Below is an excerpt showing the data structure:
 
 \`\`\`json
 {
-  "query": "summary",
-  "cacheKey": "mcp:supermodel:43a38b7",
-  "source": "api",
-  "cachedAt": "2026-01-15T18:14:00.445Z",
-  "result": {
+  "repo": "1c740c9c4f5c9528e244ab144488214341f959231f73009a46a74a1f11350c3c",
+  "version": "sir-2026-01-15",
+  "schemaVersion": "1.2.0",
+  "generatedAt": "2026-01-15T18:17:10.067Z",
+  "summary": {
     "filesProcessed": 19,
-    "classes": 2,
-    "functions": 52,
     "types": 28,
+    "functions": 52,
+    "repoSizeBytes": 61058,
+    "classes": 2,
     "domains": 6,
-    "primaryLanguage": "json",
-    "nodeCount": 160,
-    "relationshipCount": 251
+    "primaryLanguage": "json"
   },
-  "hints": [
-    "NEXT: Use search with searchText to find specific functions/classes",
-    "NEXT: Use list_nodes with labels=[\\"Function\\"] to browse all functions",
-    "NEXT: Use domain_map to see architectural domains"
-  ],
-  "_metadata": {
-    "idempotencyKey": "mcp:supermodel:43a38b7",
-    "idempotencyKeyGenerated": true
+  "graph": {
+    "nodeCount": 163,
+    "relationshipCount": 254,
+    "sampleNodes": [
+      {
+        "id": "0965aff4:42ff:df74:ae01:0d17d0886720",
+        "labels": ["ExternalModule"],
+        "properties": {
+          "name": "mcp.js"
+        }
+      },
+      {
+        "id": "ab32efae:3825:dada:a4b5:95e95dbb71cc",
+        "labels": ["Function"],
+        "properties": {
+          "name": "getNode",
+          "filePath": "src/queries/discovery.ts",
+          "language": "typescript",
+          "startLine": 25,
+          "endLine": 57,
+          "kind": "function"
+        }
+      },
+      {
+        "id": "8648e520:0be3:b754:77ce:c19dcebf6d6f",
+        "labels": ["File"],
+        "properties": {
+          "name": "test-full-graph.js",
+          "filePath": "test-full-graph.js",
+          "path": "test-full-graph.js",
+          "language": "javascript"
+        }
+      }
+    ],
+    "sampleRelationships": [
+      {
+        "id": "b161d717:5ee5:b827:cc26:f071f7a9648d->ff2a17f0:c2b6:f518:dcb8:91584b241c0f:CHILD_DIRECTORY",
+        "type": "CHILD_DIRECTORY",
+        "startNode": "b161d717:5ee5:b827:cc26:f071f7a9648d",
+        "endNode": "ff2a17f0:c2b6:f518:dcb8:91584b241c0f",
+        "properties": {}
+      },
+      {
+        "id": "ff2a17f0:c2b6:f518:dcb8:91584b241c0f->7f19b034:9fee:67c7:7b42:c7ba738d9ceb:CONTAINS_FILE",
+        "type": "CONTAINS_FILE",
+        "startNode": "ff2a17f0:c2b6:f518:dcb8:91584b241c0f",
+        "endNode": "7f19b034:9fee:67c7:7b42:c7ba738d9ceb",
+        "properties": {}
+      }
+    ]
   }
 }
 \`\`\`
 
-The tool analyzed the codebase and found:
-- 52 functions across 19 files
-- 6 architectural domains
-- 251 relationships between code entities
-- Auto-generated cache key from git commit
+The graph contains nodes with properties like filePath, startLine, endLine for functions, and relationships like CHILD_DIRECTORY, CONTAINS_FILE, calls, IMPORTS that connect code entities.
 
 Query types available: graph_status, summary, get_node, search, list_nodes, function_calls_in, function_calls_out, definitions_in_file, file_imports, domain_map, domain_membership, neighborhood, jq
 `,
