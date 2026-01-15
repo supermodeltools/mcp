@@ -32,10 +32,6 @@ export const tool: Tool = {
         type: 'string',
         description: '',
       },
-      file: {
-        type: 'string',
-        description: '',
-      },
       'Idempotency-Key': {
         type: 'string',
         description: '',
@@ -93,7 +89,7 @@ export const tool: Tool = {
         description: '',
       },
     },
-    required: ['Idempotency-Key'],
+    required: ['directory', 'Idempotency-Key'],
   },
 };
 
@@ -104,7 +100,6 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
 
   const {
     jq_filter,
-    file,
     directory,
     'Idempotency-Key': idempotencyKey,
     query,
@@ -124,59 +119,41 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     return asErrorResult('Idempotency-Key argument is required');
   }
 
-  // Validate that either directory or file is provided
-  if (!directory && !file) {
-    return asErrorResult('Either "directory" or "file" parameter is required');
+  // Validate directory
+  if (!directory || typeof directory !== 'string') {
+    return asErrorResult('Directory argument is required and must be a string path');
   }
 
-  if (directory && file) {
-    return asErrorResult('Provide either "directory" or "file", not both');
-  }
+  console.error('[DEBUG] Auto-zipping directory:', directory);
 
-  // Handle auto-zipping if directory is provided
+  // Handle auto-zipping
   let zipPath: string;
-  let shouldCleanup = false;
   let cleanup: (() => Promise<void>) | null = null;
 
-  if (directory) {
-    if (typeof directory !== 'string') {
-      return asErrorResult('Directory argument must be a string path');
+  try {
+    const zipResult = await zipRepository(directory);
+    zipPath = zipResult.path;
+    cleanup = zipResult.cleanup;
+
+    console.error('[DEBUG] Auto-zip complete:', zipResult.fileCount, 'files,', formatBytes(zipResult.sizeBytes));
+  } catch (error: any) {
+    console.error('[ERROR] Auto-zip failed:', error.message);
+
+    // Provide helpful error messages
+    if (error.message.includes('does not exist')) {
+      return asErrorResult(`Directory does not exist: ${directory}`);
+    }
+    if (error.message.includes('Permission denied')) {
+      return asErrorResult(`Permission denied accessing directory: ${directory}`);
+    }
+    if (error.message.includes('exceeds limit')) {
+      return asErrorResult(error.message);
+    }
+    if (error.message.includes('ENOSPC')) {
+      return asErrorResult('Insufficient disk space to create ZIP archive');
     }
 
-    console.error('[DEBUG] Auto-zipping directory:', directory);
-
-    try {
-      const zipResult = await zipRepository(directory);
-      zipPath = zipResult.path;
-      cleanup = zipResult.cleanup;
-      shouldCleanup = true;
-
-      console.error('[DEBUG] Auto-zip complete:', zipResult.fileCount, 'files,', formatBytes(zipResult.sizeBytes));
-    } catch (error: any) {
-      console.error('[ERROR] Auto-zip failed:', error.message);
-
-      // Provide helpful error messages
-      if (error.message.includes('does not exist')) {
-        return asErrorResult(`Directory does not exist: ${directory}`);
-      }
-      if (error.message.includes('Permission denied')) {
-        return asErrorResult(`Permission denied accessing directory: ${directory}`);
-      }
-      if (error.message.includes('exceeds limit')) {
-        return asErrorResult(error.message);
-      }
-      if (error.message.includes('ENOSPC')) {
-        return asErrorResult('Insufficient disk space to create ZIP archive');
-      }
-
-      return asErrorResult(`Failed to create ZIP archive: ${error.message}`);
-    }
-  } else {
-    // Use provided file path
-    if (typeof file !== 'string') {
-      return asErrorResult('File argument must be a string path');
-    }
-    zipPath = file;
+    return asErrorResult(`Failed to create ZIP archive: ${error.message}`);
   }
 
   // Execute query with cleanup handling
@@ -204,7 +181,7 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     return await handleLegacyMode(client, zipPath, idempotencyKey, jq_filter);
   } finally {
     // Always cleanup temp ZIP files
-    if (shouldCleanup && cleanup) {
+    if (cleanup) {
       await cleanup();
     }
   }
