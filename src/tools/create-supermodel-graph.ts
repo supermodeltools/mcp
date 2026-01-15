@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const tool: Tool = {
-  name: 'analyze_codebase',
+  name: 'graph_codebase',
   description: 'Analyzes code structure, dependencies, and relationships in a repository.',
   inputSchema: {
     type: 'object',
