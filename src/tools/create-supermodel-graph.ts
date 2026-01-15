@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 export const tool: Tool = {
-  name: 'graph_codebase',
+  name: 'explore_codebase',
   description: '',
   inputSchema: {
     type: 'object',
