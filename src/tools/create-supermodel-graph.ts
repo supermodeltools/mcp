@@ -118,7 +118,7 @@ Query types available: graph_status, summary, get_node, search, list_nodes, func
       },
       'Idempotency-Key': {
         type: 'string',
-        description: 'Optional cache key in format {repo}:{type}:{hash}. If not provided, will be auto-generated using git commit hash or random UUID.',
+        description: 'Optional cache key in format {repo}:{type}:{hash}. If not provided, will be auto-generated using git commit hash or random UUID. Provide a previously used idempotency key to fetch a cached response, for example with a different filter.',
       },
       query: {
         type: 'string',
