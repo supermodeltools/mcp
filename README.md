@@ -148,40 +148,54 @@ Analyzes code structure, dependencies, and relationships across a repository. Us
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `file` | string | Yes | Path to repository ZIP file |
+| `directory` | string | Yes* | Path to repository directory (automatic zipping) |
+| `file` | string | Yes* | Path to pre-zipped archive (deprecated) |
 | `Idempotency-Key` | string | Yes | Cache key in format `{repo}:{type}:{hash}` |
-| `jq_filter` | string | No | jq filter to extract specific data (strongly recommended) |
+| `query` | string | No | Query type (summary, search, list_nodes, etc.) |
+| `jq_filter` | string | No | jq filter for custom data extraction |
+
+\* Either `directory` (recommended) or `file` must be provided
 
 **Quick start:**
 
 ```bash
-# 1. Create ZIP from your git repo
-git archive -o /tmp/repo.zip HEAD
-
-# 2. Get commit hash for cache key
+# 1. Get commit hash for cache key
 git rev-parse --short HEAD
 # Output: abc123
 
-# 3. Ask Claude to analyze
-# "Analyze the codebase at /tmp/repo.zip using key myproject:supermodel:abc123"
+# 2. Ask Claude to analyze (no manual zipping needed!)
+# "Analyze the codebase at /path/to/repo using key myproject:supermodel:abc123"
 ```
 
 **Example prompts:**
-- "Analyze the codebase at /tmp/repo.zip to understand its architecture"
-- "Before I refactor the authentication module, analyze /tmp/repo.zip to show me what depends on it"
-- "What's the structure of the codebase in /tmp/repo.zip?"
+- "Analyze the codebase at . to understand its architecture"
+- "Before I refactor the authentication module, analyze this repo to show me what depends on it"
+- "What's the structure of the codebase in /Users/me/project?"
+
+**Automatic features:**
+- Respects `.gitignore` patterns automatically
+- Excludes sensitive files (`.env`, `*.pem`, credentials, etc.)
+- Skips dependencies (`node_modules`, `venv`, `vendor`)
+- Removes build outputs (`dist`, `build`, `out`)
+- Cleans up temporary files automatically
+- Cross-platform compatible
 
 ## Troubleshooting
 
 Debug logs go to stderr:
 
 - `[DEBUG] Server configuration:` - Startup config
+- `[DEBUG] Auto-zipping directory:` - Starting zip creation
+- `[DEBUG] Auto-zip complete:` - Zip stats (file count, size)
 - `[DEBUG] Making API request` - Request details
 - `[ERROR] API call failed:` - Error details with HTTP status
 
 **Common issues:**
 - 401: Check `SUPERMODEL_API_KEY` is set
-- ZIP too large: Exclude node_modules/dist (use `git archive`)
+- ZIP too large: Directory contains too many files/dependencies. Ensure `.gitignore` is configured properly
+- Permission denied: Check read permissions on the directory
+- Insufficient disk space: Free up space in your system's temp directory
+- Directory does not exist: Verify the path is correct and absolute
 
 ## Links
 
