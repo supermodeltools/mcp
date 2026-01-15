@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { maybeFilter, isJqError } from '../filtering';
 import { executeQuery, getAvailableQueries, isQueryError, QueryType, graphCache } from '../queries';
+import { IndexedGraph } from '../cache/graph-cache';
 import { zipRepository } from '../utils/zip-repository';
 
 export const metadata: Metadata = {
@@ -258,14 +259,17 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   }
 
   // Check if we can skip zipping (graph already cached)
-  const graphCached = graphCache.has(idempotencyKey);
-  if (graphCached && query) {
+  // Use get() atomically to avoid TOCTOU race condition
+  const cachedGraph = graphCache.get(idempotencyKey);
+  if (cachedGraph && query) {
     console.error('[DEBUG] Graph cached, skipping ZIP creation');
-    // Execute query directly from cache
-    const result = await handleQueryMode(client, {
+
+    // Execute query directly from cache using the cached graph
+    // We pass the cached graph to executeQuery so it doesn't need to look it up again
+    const result = await handleQueryModeWithCache(client, {
       query: query as QueryType,
-      file: '', // Not needed for cache hit
       idempotencyKey,
+      cachedGraph,
       targetId,
       searchText,
       namePattern,
@@ -396,6 +400,64 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+/**
+ * Handle query-based requests when graph is already cached
+ * Uses the cached graph directly to avoid TOCTOU issues
+ */
+async function handleQueryModeWithCache(
+  client: ClientContext,
+  params: {
+    query: QueryType;
+    idempotencyKey: string;
+    cachedGraph: IndexedGraph;
+    targetId?: string;
+    searchText?: string;
+    namePattern?: string;
+    filePathPrefix?: string;
+    labels?: string[];
+    depth?: number;
+    relationshipTypes?: string[];
+    limit?: number;
+    includeRaw?: boolean;
+    jq_filter?: string;
+  }
+): Promise<ReturnType<typeof asTextContentResult>> {
+  const queryParams = {
+    query: params.query,
+    file: '', // Not used when we have cached graph
+    idempotencyKey: params.idempotencyKey,
+    targetId: params.targetId,
+    searchText: params.searchText,
+    namePattern: params.namePattern,
+    filePathPrefix: params.filePathPrefix,
+    labels: params.labels,
+    depth: params.depth,
+    relationshipTypes: params.relationshipTypes,
+    limit: params.limit,
+    includeRaw: params.includeRaw,
+    jq_filter: params.jq_filter,
+  };
+
+  // Execute query with the cached graph's raw data
+  // This handles the edge case where cache is evicted between our check and query execution
+  // by passing the raw API response so executeQuery can rebuild indexes if needed
+  let result = await executeQuery(queryParams, params.cachedGraph.raw);
+
+  // Handle query errors
+  if (isQueryError(result)) {
+    const errorWithHints = {
+      ...result,
+      hints: getErrorHints(result.error.code, params.query),
+    };
+    return asTextContentResult(errorWithHints);
+  }
+
+  // Add breadcrumb hints to successful results
+  const resultWithHints = addBreadcrumbHints(result, params.query);
+
+  return asTextContentResult(resultWithHints);
 }
 
 /**
