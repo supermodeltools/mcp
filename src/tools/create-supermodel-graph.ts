@@ -24,21 +24,21 @@ export const metadata: Metadata = {
 
 export const tool: Tool = {
   name: 'graph_codebase',
-  description: 'Analyzes code structure, dependencies, and relationships in a repository.',
+  description: '',
   inputSchema: {
     type: 'object',
     properties: {
       directory: {
         type: 'string',
-        description: 'Path to the repository directory to analyze.',
+        description: '',
       },
       file: {
         type: 'string',
-        description: 'Path to a pre-zipped repository archive.',
+        description: '',
       },
       'Idempotency-Key': {
         type: 'string',
-        description: 'Cache key in format {repo}:{type}:{hash}.',
+        description: '',
       },
       query: {
         type: 'string',
@@ -47,50 +47,50 @@ export const tool: Tool = {
           'function_calls_in', 'function_calls_out', 'definitions_in_file',
           'file_imports', 'domain_map', 'domain_membership', 'neighborhood', 'jq'
         ],
-        description: 'Query type to execute.',
+        description: '',
       },
       targetId: {
         type: 'string',
-        description: 'Node ID for the target node.',
+        description: '',
       },
       searchText: {
         type: 'string',
-        description: 'Text to search for in node names.',
+        description: '',
       },
       namePattern: {
         type: 'string',
-        description: 'Regex pattern for name matching.',
+        description: '',
       },
       filePathPrefix: {
         type: 'string',
-        description: 'Filter by file path prefix.',
+        description: '',
       },
       labels: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Filter by node labels.',
+        description: '',
       },
       depth: {
         type: 'number',
-        description: 'Traversal depth for neighborhood queries.',
+        description: '',
       },
       relationshipTypes: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Relationship types to traverse.',
+        description: '',
       },
       limit: {
         type: 'number',
-        description: 'Maximum number of results to return.',
+        description: '',
       },
       includeRaw: {
         type: 'boolean',
-        description: 'Include full raw node data in response.',
+        description: '',
       },
       jq_filter: {
         type: 'string',
         title: 'jq Filter',
-        description: 'jq filter expression to apply to results.',
+        description: '',
       },
     },
     required: ['Idempotency-Key'],
