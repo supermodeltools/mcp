@@ -184,6 +184,7 @@ Query types available: graph_status, summary, get_node, search, list_nodes, func
 function generateIdempotencyKey(directory: string): string {
   const repoName = basename(directory);
   let hash: string;
+  let statusHash = '';
 
   try {
     // Try to get git commit hash
@@ -192,7 +193,20 @@ function generateIdempotencyKey(directory: string): string {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe']
     }).trim();
-    console.error('[DEBUG] Generated idempotency key using git hash:', hash);
+
+    try {
+      // Get git status to detect uncommitted changes
+      const statusOutput = execSync('git status --porcelain', {
+        cwd: directory,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe']
+      }).trim();
+      statusHash = createHash('sha1').update(statusOutput || 'clean').digest('hex').substring(0, 7);
+      console.error('[DEBUG] Generated idempotency key using git hash:', hash, 'and status hash:', statusHash);
+    } catch (statusError) {
+      // If git status fails, just use commit hash
+      console.error('[DEBUG] Generated idempotency key using git hash:', hash, '(git status unavailable)');
+    }
   } catch (error) {
     // Git not available or not a git repo, use UUID-based hash
     const uuid = randomUUID();
@@ -201,7 +215,7 @@ function generateIdempotencyKey(directory: string): string {
     console.error('[DEBUG] Generated idempotency key using random UUID hash:', hash);
   }
 
-  return `${repoName}:supermodel:${hash}`;
+  return statusHash ? `${repoName}:supermodel:${hash}-${statusHash}` : `${repoName}:supermodel:${hash}`;
 }
 
 export const handler: HandlerFunction = async (client: ClientContext, args: Record<string, unknown> | undefined) => {
