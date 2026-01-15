@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 
 export const tool: Tool = {
   name: 'explore_codebase',
-  description: `
+  description: `Analyzes code within the target directory to produce a graph that can be used to navigate the codebase when solving bugs, planning or analyzing code changes.
 
 ## Example Output
 
