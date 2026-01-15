@@ -1,6 +1,10 @@
 // @ts-nocheck
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFile } from 'fs/promises';
+import { execSync } from 'child_process';
+import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
+import { basename } from 'path';
 import {
   Metadata,
   Endpoint,
@@ -34,7 +38,7 @@ export const tool: Tool = {
       },
       'Idempotency-Key': {
         type: 'string',
-        description: '',
+        description: 'Optional cache key in format {repo}:{type}:{hash}. If not provided, will be auto-generated using git commit hash or random UUID.',
       },
       query: {
         type: 'string',
@@ -89,9 +93,36 @@ export const tool: Tool = {
         description: 'Raw jq filter for escape hatch queries or legacy mode (when query param not specified)',
       },
     },
-    required: ['directory', 'Idempotency-Key'],
+    required: ['directory'],
   },
 };
+
+/**
+ * Generate an idempotency key in format {repo}:supermodel:{hash}
+ * Tries to use git commit hash, falls back to UUID-based hash
+ */
+function generateIdempotencyKey(directory: string): string {
+  const repoName = basename(directory);
+  let hash: string;
+
+  try {
+    // Try to get git commit hash
+    hash = execSync('git rev-parse --short HEAD', {
+      cwd: directory,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    }).trim();
+    console.error('[DEBUG] Generated idempotency key using git hash:', hash);
+  } catch (error) {
+    // Git not available or not a git repo, use UUID-based hash
+    const uuid = randomUUID();
+    // Hash like git does (SHA-1) and take first 7 characters
+    hash = createHash('sha1').update(uuid).digest('hex').substring(0, 7);
+    console.error('[DEBUG] Generated idempotency key using random UUID hash:', hash);
+  }
+
+  return `${repoName}:supermodel:${hash}`;
+}
 
 export const handler: HandlerFunction = async (client: ClientContext, args: Record<string, unknown> | undefined) => {
   if (!args) {
@@ -101,7 +132,7 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   const {
     jq_filter,
     directory,
-    'Idempotency-Key': idempotencyKey,
+    'Idempotency-Key': providedIdempotencyKey,
     query,
     targetId,
     searchText,
@@ -114,14 +145,22 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     includeRaw,
   } = args as any;
 
-  // Validate idempotency key
-  if (!idempotencyKey || typeof idempotencyKey !== 'string') {
-    return asErrorResult('Idempotency-Key argument is required');
-  }
-
   // Validate directory
   if (!directory || typeof directory !== 'string') {
     return asErrorResult('Directory argument is required and must be a string path');
+  }
+
+  // Generate or validate idempotency key
+  let idempotencyKey: string;
+  let keyGenerated = false;
+
+  if (!providedIdempotencyKey || typeof providedIdempotencyKey !== 'string') {
+    idempotencyKey = generateIdempotencyKey(directory);
+    keyGenerated = true;
+    console.error('[DEBUG] Auto-generated idempotency key:', idempotencyKey);
+  } else {
+    idempotencyKey = providedIdempotencyKey;
+    console.error('[DEBUG] Using provided idempotency key:', idempotencyKey);
   }
 
   console.error('[DEBUG] Auto-zipping directory:', directory);
@@ -158,9 +197,11 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
 
   // Execute query with cleanup handling
   try {
+    let result;
+
     // If query param is specified, use the new query engine
     if (query) {
-      return await handleQueryMode(client, {
+      result = await handleQueryMode(client, {
         query: query as QueryType,
         file: zipPath,
         idempotencyKey,
@@ -175,10 +216,32 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
         includeRaw,
         jq_filter,
       });
+    } else {
+      // Legacy mode: use jq_filter directly on API response
+      result = await handleLegacyMode(client, zipPath, idempotencyKey, jq_filter);
     }
 
-    // Legacy mode: use jq_filter directly on API response
-    return await handleLegacyMode(client, zipPath, idempotencyKey, jq_filter);
+    // If key was auto-generated, add it to the response
+    if (keyGenerated && result.content && result.content[0]?.type === 'text') {
+      const originalText = result.content[0].text;
+      let responseData;
+
+      try {
+        responseData = JSON.parse(originalText);
+        // Add metadata about auto-generated key
+        responseData._metadata = {
+          ...responseData._metadata,
+          idempotencyKey,
+          idempotencyKeyGenerated: true
+        };
+        result.content[0].text = JSON.stringify(responseData, null, 2);
+      } catch {
+        // Not JSON, prepend key info as text
+        result.content[0].text = `[Auto-generated Idempotency-Key: ${idempotencyKey}]\n\n${originalText}`;
+      }
+    }
+
+    return result;
   } finally {
     // Always cleanup temp ZIP files
     if (cleanup) {
