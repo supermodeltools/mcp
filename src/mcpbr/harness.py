@@ -89,19 +89,19 @@ def agent_result_to_dict(
         data["resolved"] = eval_result.resolved
         data["patch_applied"] = eval_result.patch_applied
 
-        if eval_result.fail_to_pass:
+        if getattr(eval_result, "fail_to_pass", None):
             data["fail_to_pass"] = {
                 "passed": eval_result.fail_to_pass.passed,
                 "total": eval_result.fail_to_pass.total,
             }
 
-        if eval_result.pass_to_pass:
+        if getattr(eval_result, "pass_to_pass", None):
             data["pass_to_pass"] = {
                 "passed": eval_result.pass_to_pass.passed,
                 "total": eval_result.pass_to_pass.total,
             }
 
-        if eval_result.error:
+        if getattr(eval_result, "error", None):
             data["eval_error"] = eval_result.error
     else:
         data["resolved"] = False
@@ -397,8 +397,12 @@ async def run_evaluation(
     # Create benchmark instance
     benchmark_kwargs: dict[str, Any] = {}
     if config.dataset:
-        # Pass dataset to benchmark; let benchmark validate compatibility
-        benchmark_kwargs["dataset"] = config.dataset
+        # Only pass dataset if it's compatible with the benchmark
+        # CyberGym should use its own default dataset, not SWE-bench
+        if config.benchmark == "cybergym" and "cybergym" not in config.dataset.lower():
+            pass  # Don't pass SWE-bench dataset to CyberGym
+        else:
+            benchmark_kwargs["dataset"] = config.dataset
     if config.benchmark == "cybergym":
         benchmark_kwargs["level"] = config.cybergym_level
 
