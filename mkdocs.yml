@@ -1,0 +1,98 @@
+site_name: mcpbr Documentation
+site_description: Benchmark runner for evaluating MCP servers against SWE-bench tasks
+site_url: https://greynewell.github.io/mcpbr/
+repo_url: https://github.com/greynewell/mcpbr
+repo_name: greynewell/mcpbr
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2024-2026 mcpbr Contributors
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  logo: assets/mcpbr-logo.jpg
+  favicon: assets/mcpbr-logo.jpg
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 2
+            members_order: source
+            docstring_style: google
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quick Start: index.md
+  - User Guide:
+      - Configuration: configuration.md
+      - CLI Reference: cli.md
+      - MCP Integration: mcp-integration.md
+      - Evaluation Results: evaluation-results.md
+  - Reference:
+      - Architecture: architecture.md
+      - API Reference: api/index.md
+  - Community:
+      - Contributing: contributing.md
+      - Troubleshooting: troubleshooting.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/greynewell/mcpbr
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/mcpbr/
+    - icon: fontawesome/solid/globe
+      link: https://greynewell.com
+      name: Grey Newell

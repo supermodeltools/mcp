@@ -20,7 +20,7 @@ model: "claude-sonnet-4-20250514"
 
 dataset: "SWE-bench/SWE-bench_Lite"
 
-sample_size: 1
+sample_size: 10  # Run full SWE-bench Lite dataset
 
 timeout_seconds: 300
 

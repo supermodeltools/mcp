@@ -39,6 +39,12 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "ruff>=0.1.0",
 ]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-minify-plugin>=0.7.0",
+]
 
 [project.scripts]
 mcpbr = "mcpbr.cli:main"
@@ -46,12 +52,20 @@ mcpbr = "mcpbr.cli:main"
 [project.urls]
 Homepage = "https://github.com/greynewell/mcpbr"
 Repository = "https://github.com/greynewell/mcpbr"
-Documentation = "https://github.com/greynewell/mcpbr#readme"
+Documentation = "https://greynewell.github.io/mcpbr/"
 Changelog = "https://github.com/greynewell/mcpbr/blob/main/CHANGELOG.md"
 "Bug Tracker" = "https://github.com/greynewell/mcpbr/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcpbr"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "docs/",
+    "mkdocs.yml",
+    "site/",
+    ".github/workflows/docs.yml",
+]
 
 [tool.ruff]
 line-length = 100

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  
+  {# FAQ JSON-LD Structured Data #}
+  {% if page and page.meta and page.meta.faq %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {% for item in page.meta.faq %}
+      {
+        "@type": "Question",
+        "name": "{{ item.q | e }}",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "{{ item.a | e }}"
+        }
+      }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    ]
+  }
+  </script>
+  {% endif %}
+
+  {# Software Application Structured Data for Home Page #}
+  {% if page and (page.is_homepage or page.url == '.' or page.url == '') %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "mcpbr",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux, macOS, Windows",
+    "description": "Model Context Protocol Benchmark Runner - evaluate MCP servers against SWE-bench tasks",
+    "url": "https://greynewell.github.io/mcpbr/",
+    "downloadUrl": "https://pypi.org/project/mcpbr/",
+    "softwareVersion": "0.1.0",
+    "license": "https://opensource.org/licenses/MIT",
+    "programmingLanguage": "Python"
+  }
+  </script>
+  {% endif %}
+{% endblock %}

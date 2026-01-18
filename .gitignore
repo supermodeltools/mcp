@@ -50,6 +50,7 @@ coverage.xml
 .env
 .env.*
 .venv/
+.venv
 env/
 venv/
 ENV/
@@ -85,3 +86,6 @@ docker-build/
 
 # Datasets cache
 .cache/
+
+# MkDocs build output
+site/
