@@ -184,35 +184,31 @@ function generateIdempotencyKey(directory: string): string {
   let statusHash = '';
 
   try {
-    // Try to get git commit hash
+    // Get git commit hash
     hash = execSync('git rev-parse --short HEAD', {
       cwd: directory,
       encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe']
     }).trim();
 
-    try {
-      // Get git status to detect uncommitted changes
-      const statusOutput = execSync('git status --porcelain', {
-        cwd: directory,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe']
-      }).trim();
-      statusHash = createHash('sha1').update(statusOutput || 'clean').digest('hex').substring(0, 7);
-      console.error('[DEBUG] Generated idempotency key using git hash:', hash, 'and status hash:', statusHash);
-    } catch (statusError) {
-      // If git status fails, just use commit hash
-      console.error('[DEBUG] Generated idempotency key using git hash:', hash, '(git status unavailable)');
+    // Include working tree status in hash to detect uncommitted changes
+    const statusOutput = execSync('git status --porcelain', {
+      cwd: directory,
+      encoding: 'utf-8',
+    }).toString();
+
+    if (statusOutput) {
+      // Create hash of status output
+      statusHash = '-' + createHash('sha1')
+        .update(statusOutput)
+        .digest('hex')
+        .substring(0, 7);
     }
-  } catch (error) {
-    // Git not available or not a git repo, use UUID-based hash
-    const uuid = randomUUID();
-    // Hash like git does (SHA-1) and take first 7 characters
-    hash = createHash('sha1').update(uuid).digest('hex').substring(0, 7);
-    console.error('[DEBUG] Generated idempotency key using random UUID hash:', hash);
+  } catch {
+    // Fallback for non-git directories
+    hash = 'nogit';
   }
 
-  return statusHash ? `${repoName}:supermodel:${hash}-${statusHash}` : `${repoName}:supermodel:${hash}`;
+  return `${repoName}:supermodel:${hash}${statusHash}`;
 }
 
 export const handler: HandlerFunction = async (client: ClientContext, args: Record<string, unknown> | undefined) => {
