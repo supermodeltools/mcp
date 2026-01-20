@@ -1,11 +1,10 @@
 import { DefaultApi } from '@supermodeltools/sdk';
-import { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 export interface ClientContext {
   graphs: DefaultApi;
 }
 
-export type ContentBlock = 
+export type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; data: string; mimeType: string }
   | { type: 'audio'; data: string; mimeType: string }
@@ -20,21 +19,6 @@ export type HandlerFunction = (
   client: ClientContext,
   args: Record<string, unknown> | undefined
 ) => Promise<ToolCallResult>;
-
-export type Metadata = {
-  resource: string;
-  operation: 'read' | 'write';
-  tags: string[];
-  httpMethod?: string;
-  httpPath?: string;
-  operationId?: string;
-};
-
-export type Endpoint = {
-  metadata: Metadata;
-  tool: Tool;
-  handler: HandlerFunction;
-};
 
 export function asTextContentResult(result: unknown): ToolCallResult {
   return {

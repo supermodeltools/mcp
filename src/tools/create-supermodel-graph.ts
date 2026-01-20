@@ -4,8 +4,6 @@ import { execSync } from 'child_process';
 import { createHash } from 'crypto';
 import { basename, resolve } from 'path';
 import {
-  Metadata,
-  Endpoint,
   HandlerFunction,
   asTextContentResult,
   asErrorResult,
@@ -15,15 +13,6 @@ import { maybeFilter, isJqError } from '../filtering';
 import { executeQuery, getAvailableQueries, isQueryError, QueryType, graphCache } from '../queries';
 import { IndexedGraph } from '../cache/graph-cache';
 import { zipRepository } from '../utils/zip-repository';
-
-export const metadata: Metadata = {
-  resource: 'graphs',
-  operation: 'write',
-  tags: [],
-  httpMethod: 'post',
-  httpPath: '/v1/graphs/supermodel',
-  operationId: 'generateSupermodelGraph',
-};
 
 export const tool: Tool = {
   name: 'explore_codebase',
@@ -814,4 +803,4 @@ async function handleLegacyMode(
   }
 }
 
-export default { metadata, tool, handler };
+export default { tool, handler };
