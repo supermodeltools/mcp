@@ -239,6 +239,7 @@ export async function zipRepository(
 
 /**
  * Build ignore filter from .gitignore files and standard exclusions
+ * Recursively finds and parses .gitignore files in subdirectories
  */
 async function buildIgnoreFilter(
   rootDir: string,
@@ -254,26 +255,116 @@ async function buildIgnoreFilter(
     ig.add(additionalExclusions);
   }
 
-  // Parse .gitignore in root
-  const gitignorePath = join(rootDir, '.gitignore');
-  try {
-    const gitignoreContent = await fs.readFile(gitignorePath, 'utf-8');
-    const patterns = gitignoreContent
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#'));
+  // Recursively find and parse all .gitignore files
+  const gitignoreFiles = await findGitignoreFiles(rootDir);
 
-    if (patterns.length > 0) {
-      ig.add(patterns);
-      console.error('[DEBUG] Loaded .gitignore with', patterns.length, 'patterns');
-    }
-  } catch (error: any) {
-    if (error.code !== 'ENOENT') {
-      console.error('[WARN] Failed to read .gitignore:', error.message);
+  for (const gitignorePath of gitignoreFiles) {
+    try {
+      const gitignoreContent = await fs.readFile(gitignorePath, 'utf-8');
+      const patterns = gitignoreContent
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+
+      if (patterns.length > 0) {
+        // Get the directory containing this .gitignore
+        const gitignoreDir = gitignorePath.substring(0, gitignorePath.length - '.gitignore'.length);
+        const relativeDir = relative(rootDir, gitignoreDir);
+
+        // Scope patterns to their directory
+        const scopedPatterns = patterns.map(pattern => {
+          // If pattern starts with '/', it's relative to the .gitignore location
+          if (pattern.startsWith('/')) {
+            const patternWithoutSlash = pattern.substring(1);
+            return relativeDir ? `${relativeDir}/${patternWithoutSlash}` : patternWithoutSlash;
+          }
+          // If pattern starts with '!', handle negation
+          else if (pattern.startsWith('!')) {
+            const negatedPattern = pattern.substring(1);
+            if (negatedPattern.startsWith('/')) {
+              const patternWithoutSlash = negatedPattern.substring(1);
+              return relativeDir ? `!${relativeDir}/${patternWithoutSlash}` : `!${patternWithoutSlash}`;
+            }
+            // For non-rooted negation patterns, prefix with directory
+            return relativeDir ? `!${relativeDir}/${negatedPattern}` : `!${negatedPattern}`;
+          }
+          // For non-rooted patterns, prefix with the directory path
+          else {
+            return relativeDir ? `${relativeDir}/${pattern}` : pattern;
+          }
+        });
+
+        ig.add(scopedPatterns);
+
+        const location = relativeDir ? `in ${relativeDir}/` : 'in root';
+        console.error(`[DEBUG] Loaded .gitignore ${location} with ${patterns.length} patterns`);
+      }
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') {
+        console.error('[WARN] Failed to read .gitignore at', gitignorePath, ':', error.message);
+      }
     }
   }
 
   return ig;
+}
+
+/**
+ * Recursively find all .gitignore files in a directory tree
+ */
+async function findGitignoreFiles(rootDir: string): Promise<string[]> {
+  const gitignoreFiles: string[] = [];
+
+  async function searchDirectory(dir: string): Promise<void> {
+    let entries: string[];
+
+    try {
+      entries = await fs.readdir(dir);
+    } catch (error: any) {
+      if (error.code === 'EACCES') {
+        console.error('[WARN] Permission denied:', dir);
+        return;
+      }
+      return;
+    }
+
+    for (const entry of entries) {
+      // Skip .git directory and other version control directories
+      if (entry === '.git' || entry === '.svn' || entry === '.hg') {
+        continue;
+      }
+
+      const fullPath = join(dir, entry);
+
+      // If this is a .gitignore file, add it to the list
+      if (entry === '.gitignore') {
+        gitignoreFiles.push(fullPath);
+        continue;
+      }
+
+      // If it's a directory, recurse into it
+      try {
+        const stats = await fs.lstat(fullPath);
+        if (stats.isDirectory() && !stats.isSymbolicLink()) {
+          await searchDirectory(fullPath);
+        }
+      } catch (error: any) {
+        // Skip files we can't access
+        continue;
+      }
+    }
+  }
+
+  await searchDirectory(rootDir);
+
+  // Sort so root .gitignore is processed first
+  gitignoreFiles.sort((a, b) => {
+    const aDepth = a.split(sep).length;
+    const bDepth = b.split(sep).length;
+    return aDepth - bDepth;
+  });
+
+  return gitignoreFiles;
 }
 
 /**
