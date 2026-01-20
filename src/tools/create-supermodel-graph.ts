@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFile } from 'fs/promises';
 import { execSync } from 'child_process';
@@ -174,11 +173,16 @@ Query types available: graph_status, summary, get_node, search, list_nodes, func
 };
 
 /**
- * Generate an idempotency key in format {repo}:supermodel:{hash}
- * Tries to use git commit hash, falls back to path-based hash for deterministic caching
+ * Generate an idempotency key in format {repo}-{pathHash}:supermodel:{hash}
+ * Includes path hash to prevent collisions between same-named repos
  */
 function generateIdempotencyKey(directory: string): string {
   const repoName = basename(directory);
+  const absolutePath = resolve(directory);
+
+  // Always include path hash to prevent collisions
+  const pathHash = createHash('sha1').update(absolutePath).digest('hex').substring(0, 7);
+
   let hash: string;
   let statusHash = '';
 
@@ -203,12 +207,11 @@ function generateIdempotencyKey(directory: string): string {
         .substring(0, 7);
     }
   } catch {
-    // Fallback for non-git directories: hash the absolute path for deterministic key
-    const absolutePath = resolve(directory);
-    hash = createHash('sha1').update(absolutePath).digest('hex').substring(0, 7);
+    // Fallback for non-git directories: use path hash as main identifier
+    hash = pathHash;
   }
 
-  return `${repoName}:supermodel:${hash}${statusHash}`;
+  return `${repoName}-${pathHash}:supermodel:${hash}${statusHash}`;
 }
 
 export const handler: HandlerFunction = async (client: ClientContext, args: Record<string, unknown> | undefined) => {
