@@ -2,9 +2,8 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFile } from 'fs/promises';
 import { execSync } from 'child_process';
-import { randomUUID } from 'crypto';
 import { createHash } from 'crypto';
-import { basename } from 'path';
+import { basename, resolve } from 'path';
 import {
   Metadata,
   Endpoint,
@@ -176,7 +175,7 @@ Query types available: graph_status, summary, get_node, search, list_nodes, func
 
 /**
  * Generate an idempotency key in format {repo}:supermodel:{hash}
- * Tries to use git commit hash, falls back to UUID-based hash
+ * Tries to use git commit hash, falls back to path-based hash for deterministic caching
  */
 function generateIdempotencyKey(directory: string): string {
   const repoName = basename(directory);
@@ -204,8 +203,9 @@ function generateIdempotencyKey(directory: string): string {
         .substring(0, 7);
     }
   } catch {
-    // Fallback for non-git directories
-    hash = 'nogit';
+    // Fallback for non-git directories: hash the absolute path for deterministic key
+    const absolutePath = resolve(directory);
+    hash = createHash('sha1').update(absolutePath).digest('hex').substring(0, 7);
   }
 
   return `${repoName}:supermodel:${hash}${statusHash}`;
