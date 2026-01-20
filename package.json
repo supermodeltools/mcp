@@ -13,7 +13,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "repository": {
     "type": "git",
@@ -43,8 +46,12 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@jest/globals": "^30.2.0",
     "@types/archiver": "^7.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.11.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
     "typescript": "^5.3.3"
   }
 }
