@@ -133,6 +133,19 @@ export async function zipRepository(
   // Parse gitignore files
   const ignoreFilter = await buildIgnoreFilter(directoryPath, options.additionalExclusions);
 
+  // Estimate directory size before starting ZIP creation
+  console.error('[DEBUG] Estimating directory size...');
+  const estimatedSize = await estimateDirectorySize(directoryPath, ignoreFilter);
+  console.error('[DEBUG] Estimated size:', formatBytes(estimatedSize));
+
+  // Check if estimated size exceeds limit
+  if (estimatedSize > maxSizeBytes) {
+    throw new Error(
+      `Directory size (${formatBytes(estimatedSize)}) exceeds maximum allowed size (${formatBytes(maxSizeBytes)}). ` +
+      `Consider excluding more directories or analyzing a subdirectory.`
+    );
+  }
+
   // Create temp file path
   const tempDir = tmpdir();
   const zipFileName = `supermodel-${randomBytes(8).toString('hex')}.zip`;
@@ -235,6 +248,79 @@ export async function zipRepository(
     fileCount,
     sizeBytes: zipSizeBytes,
   };
+}
+
+/**
+ * Estimate total size of directory with ignore filters applied
+ * Returns total size in bytes of files that would be included in the ZIP
+ */
+async function estimateDirectorySize(
+  rootDir: string,
+  ignoreFilter: Ignore
+): Promise<number> {
+  let totalSize = 0;
+
+  async function walkDirectory(currentDir: string): Promise<void> {
+    let entries: string[];
+
+    try {
+      entries = await fs.readdir(currentDir);
+    } catch (error: any) {
+      if (error.code === 'EACCES') {
+        console.error('[WARN] Permission denied:', currentDir);
+        return;
+      }
+      throw error;
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(currentDir, entry);
+      const relativePath = relative(rootDir, fullPath);
+
+      // Normalize path for ignore matching (use forward slashes)
+      const normalizedRelativePath = relativePath.split(sep).join('/');
+
+      // Check if ignored
+      if (ignoreFilter.ignores(normalizedRelativePath)) {
+        continue;
+      }
+
+      let stats;
+      try {
+        stats = await fs.lstat(fullPath);
+      } catch (error: any) {
+        if (error.code === 'ENOENT') {
+          // File disappeared, skip
+          continue;
+        }
+        console.error('[WARN] Failed to stat:', fullPath, error.message);
+        continue;
+      }
+
+      // Skip symlinks to prevent following links outside the repository
+      if (stats.isSymbolicLink()) {
+        continue;
+      }
+
+      if (stats.isDirectory()) {
+        // Check if directory itself should be ignored
+        const dirPath = normalizedRelativePath + '/';
+        if (ignoreFilter.ignores(dirPath)) {
+          continue;
+        }
+
+        // Recurse into directory
+        await walkDirectory(fullPath);
+      } else if (stats.isFile()) {
+        // Add file size to total
+        totalSize += stats.size;
+      }
+      // Skip other special files (sockets, FIFOs, etc.)
+    }
+  }
+
+  await walkDirectory(rootDir);
+  return totalSize;
 }
 
 /**
