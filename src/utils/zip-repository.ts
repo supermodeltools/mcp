@@ -119,6 +119,38 @@ export interface ZipOptions {
    * Default: true (maintains backward compatibility)
    */
   includeGitignore?: boolean;
+
+  /**
+   * Optional callback to track progress during ZIP creation.
+   * Called approximately every 100 files (configurable via progressInterval).
+   *
+   * @param stats - Progress statistics
+   * @param stats.filesProcessed - Number of files added to archive so far
+   * @param stats.currentFile - Path of the current file being processed (relative to repository root)
+   * @param stats.bytesProcessed - Total bytes processed across all files
+   *
+   * @example
+   * ```typescript
+   * await zipRepository('/path/to/repo', {
+   *   onProgress: (stats) => {
+   *     console.log(`Processed ${stats.filesProcessed} files (${formatBytes(stats.bytesProcessed)})`);
+   *     console.log(`Current file: ${stats.currentFile}`);
+   *   }
+   * });
+   * ```
+   */
+  onProgress?: (stats: {
+    filesProcessed: number;
+    currentFile: string;
+    bytesProcessed: number;
+  }) => void;
+
+  /**
+   * Number of files to process between progress callbacks (default: 100).
+   * Lower values provide more frequent updates but with slight overhead.
+   * Only used when onProgress is provided.
+   */
+  progressInterval?: number;
 }
 
 /**
@@ -129,13 +161,16 @@ export interface ZipOptions {
  * @param options.maxSizeBytes - Maximum ZIP size in bytes (default: 500MB)
  * @param options.additionalExclusions - Custom patterns to exclude
  * @param options.includeGitignore - Whether to include .gitignore files (default: true)
+ * @param options.onProgress - Optional callback to track progress
+ * @param options.progressInterval - Files to process between progress callbacks (default: 100)
  * @returns Promise resolving to ZipResult with path, cleanup function, and metadata
  *
  * @example
- * // Create ZIP excluding .gitignore files
+ * // Create ZIP excluding .gitignore files with progress tracking
  * const result = await zipRepository('/path/to/repo', {
  *   includeGitignore: false,
- *   maxSizeBytes: 100 * 1024 * 1024 // 100MB
+ *   maxSizeBytes: 100 * 1024 * 1024, // 100MB
+ *   onProgress: (stats) => console.log(`${stats.filesProcessed} files`)
  * });
  */
 export async function zipRepository(
@@ -243,7 +278,12 @@ export async function zipRepository(
   archive.pipe(output);
 
   // Add files recursively with filtering
-  await addFilesRecursively(archive, directoryPath, directoryPath, ignoreFilter);
+  // Initialize progress state if progress callback is provided
+  const progressState: ProgressState | undefined = options.onProgress
+    ? { filesProcessed: 0, bytesProcessed: 0, lastReportedCount: 0, lastFile: '' }
+    : undefined;
+
+  await addFilesRecursively(archive, directoryPath, directoryPath, ignoreFilter, options, progressState);
 
   // Finalize archive
   await archive.finalize();
@@ -533,13 +573,25 @@ async function findGitignoreFiles(rootDir: string): Promise<string[]> {
 }
 
 /**
+ * Progress tracking state for addFilesRecursively
+ */
+interface ProgressState {
+  filesProcessed: number;
+  bytesProcessed: number;
+  lastReportedCount: number;
+  lastFile: string;
+}
+
+/**
  * Recursively add files to archive with filtering
  */
 async function addFilesRecursively(
   archive: archiver.Archiver,
   rootDir: string,
   currentDir: string,
-  ignoreFilter: Ignore
+  ignoreFilter: Ignore,
+  options?: ZipOptions,
+  progressState?: ProgressState
 ): Promise<void> {
   let entries: string[];
 
@@ -593,16 +645,59 @@ async function addFilesRecursively(
       }
 
       // Recurse into directory
-      await addFilesRecursively(archive, rootDir, fullPath, ignoreFilter);
+      await addFilesRecursively(archive, rootDir, fullPath, ignoreFilter, options, progressState);
     } else if (stats.isFile()) {
       // Add file to archive
       try {
         archive.file(fullPath, { name: normalizedRelativePath });
+
+        // Track progress if callback is provided
+        if (progressState && options?.onProgress) {
+          progressState.filesProcessed++;
+          progressState.bytesProcessed += stats.size;
+          progressState.lastFile = normalizedRelativePath;
+
+          const progressInterval = options.progressInterval || 100;
+
+          // Report progress every N files
+          if (progressState.filesProcessed - progressState.lastReportedCount >= progressInterval) {
+            logger.debug(
+              `Progress: ${progressState.filesProcessed} files, ${formatBytes(progressState.bytesProcessed)}`
+            );
+
+            options.onProgress({
+              filesProcessed: progressState.filesProcessed,
+              currentFile: normalizedRelativePath,
+              bytesProcessed: progressState.bytesProcessed,
+            });
+
+            progressState.lastReportedCount = progressState.filesProcessed;
+          }
+        }
       } catch (error: any) {
         logger.warn('Failed to add file:', fullPath, error.message);
       }
     }
     // Skip other special files (sockets, FIFOs, etc.)
+  }
+
+  // Report final progress if we have a callback and there are unreported files
+  // Only report at the root level (when currentDir === rootDir)
+  if (
+    currentDir === rootDir &&
+    progressState &&
+    options?.onProgress &&
+    progressState.filesProcessed > progressState.lastReportedCount
+  ) {
+    logger.debug(
+      `Final progress: ${progressState.filesProcessed} files, ${formatBytes(progressState.bytesProcessed)}`
+    );
+
+    options.onProgress({
+      filesProcessed: progressState.filesProcessed,
+      currentFile: progressState.lastFile,
+      bytesProcessed: progressState.bytesProcessed,
+    });
   }
 }
 
