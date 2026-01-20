@@ -454,7 +454,46 @@ async function handleQueryMode(
       const apiResponse = await fetchFromApi(client, params.file, params.idempotencyKey);
       result = await executeQuery(queryParams, apiResponse);
     } catch (error: any) {
-      return asErrorResult(`API call failed: ${error.message || String(error)}`);
+      // Error details are already logged by fetchFromApi and logErrorResponse
+      // Return a user-friendly error message
+
+      let errorMessage = 'API call failed: ';
+
+      if (error.response) {
+        const status = error.response.status;
+        errorMessage += `HTTP ${status} - `;
+
+        switch (status) {
+          case 401:
+            errorMessage += 'Authentication failed. Please check your SUPERMODEL_API_KEY environment variable is set correctly.';
+            break;
+          case 403:
+            errorMessage += 'Access forbidden. Your API key may not have permission for this operation.';
+            break;
+          case 404:
+            errorMessage += 'API endpoint not found. The service URL may be incorrect.';
+            break;
+          case 429:
+            errorMessage += 'Rate limit exceeded. Please try again later.';
+            break;
+          case 500:
+          case 502:
+          case 503:
+          case 504:
+            errorMessage += 'Server error. The Supermodel API may be temporarily unavailable.';
+            break;
+          default:
+            errorMessage += error.message || 'Unknown error occurred.';
+        }
+      } else if (error.request) {
+        errorMessage += 'No response received from server. Check your network connection or the service may be down.';
+      } else {
+        errorMessage += error.message || String(error);
+      }
+
+      errorMessage += '\n\nCheck the MCP server logs (stderr) for detailed diagnostic information.';
+
+      return asErrorResult(errorMessage);
     }
   }
 
@@ -577,25 +616,143 @@ function getErrorHints(errorCode: string, queryType: QueryType): string[] {
 }
 
 /**
- * Fetch graph from API
+ * Get current timestamp in ISO format
+ */
+function getTimestamp(): string {
+  return new Date().toISOString();
+}
+
+/**
+ * Log HTTP request details
+ */
+function logRequest(url: string, method: string, bodySize: number, idempotencyKey: string): void {
+  console.error(`[${getTimestamp()}] [API REQUEST]`);
+  console.error(`  Method: ${method}`);
+  console.error(`  URL: ${url}`);
+  console.error(`  Idempotency-Key: ${idempotencyKey}`);
+  console.error(`  Body size: ${formatBytes(bodySize)}`);
+  console.error(`  Content-Type: multipart/form-data`);
+}
+
+/**
+ * Log HTTP response details
+ */
+function logResponse(status: number, statusText: string, responseSize: number, duration: number): void {
+  console.error(`[${getTimestamp()}] [API RESPONSE]`);
+  console.error(`  Status: ${status} ${statusText}`);
+  console.error(`  Response size: ${formatBytes(responseSize)}`);
+  console.error(`  Duration: ${duration}ms`);
+}
+
+/**
+ * Log HTTP error with full details
+ */
+async function logErrorResponse(error: any): Promise<void> {
+  console.error(`[${getTimestamp()}] [API ERROR]`);
+  console.error(`  Error type: ${error.name || 'Unknown'}`);
+  console.error(`  Error message: ${error.message || 'No message'}`);
+
+  if (error.response) {
+    const status = error.response.status;
+    const statusText = error.response.statusText || '';
+    console.error(`  HTTP Status: ${status} ${statusText}`);
+
+    // Log specific error messages for common status codes
+    switch (status) {
+      case 401:
+        console.error(`  [ERROR] Unauthorized: Invalid or missing API key`);
+        console.error(`  [ERROR] Check SUPERMODEL_API_KEY environment variable`);
+        break;
+      case 403:
+        console.error(`  [ERROR] Forbidden: API key valid but lacks permission`);
+        break;
+      case 404:
+        console.error(`  [ERROR] Not Found: API endpoint does not exist`);
+        break;
+      case 429:
+        console.error(`  [ERROR] Rate Limited: Too many requests`);
+        break;
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        console.error(`  [ERROR] Server Error: Supermodel API is experiencing issues`);
+        break;
+    }
+
+    // Try to read and log the full error response body
+    try {
+      const responseText = await error.response.text();
+      console.error(`  Response body: ${responseText}`);
+    } catch (e) {
+      console.error(`  [WARNING] Could not read response body: ${e}`);
+    }
+  } else if (error.request) {
+    console.error(`  [ERROR] No response received from server`);
+    console.error(`  [ERROR] Possible network issue or timeout`);
+  } else {
+    console.error(`  [ERROR] Request setup failed`);
+  }
+
+  if (error.stack) {
+    console.error(`  Stack trace: ${error.stack}`);
+  }
+}
+
+/**
+ * Fetch graph from API with comprehensive logging
  */
 async function fetchFromApi(client: ClientContext, file: string, idempotencyKey: string): Promise<any> {
+  const startTime = Date.now();
+
   console.error('[DEBUG] Reading file:', file);
   const fileBuffer = await readFile(file);
   const fileBlob = new Blob([fileBuffer], { type: 'application/zip' });
+  const fileSize = fileBuffer.length;
 
-  console.error('[DEBUG] File size:', fileBuffer.length, 'bytes');
-  console.error('[DEBUG] Making API request with idempotency key:', idempotencyKey);
+  console.error('[DEBUG] File size:', formatBytes(fileSize));
+
+  // Get the base URL from environment or use default
+  const baseUrl = process.env.SUPERMODEL_BASE_URL || 'https://api.supermodeltools.com';
+  const apiUrl = `${baseUrl}/v1/graphs/supermodel`;
+
+  // Log the request details
+  logRequest(apiUrl, 'POST', fileSize, idempotencyKey);
 
   const requestParams = {
     file: fileBlob as any,
     idempotencyKey: idempotencyKey,
   };
 
-  const response = await client.graphs.generateSupermodelGraph(requestParams);
-  console.error('[DEBUG] API request successful');
+  try {
+    const response = await client.graphs.generateSupermodelGraph(requestParams);
+    const duration = Date.now() - startTime;
 
-  return response;
+    // Calculate approximate response size
+    const responseSize = JSON.stringify(response).length;
+    logResponse(200, 'OK', responseSize, duration);
+
+    console.error(`[${getTimestamp()}] [API SUCCESS] Request completed successfully`);
+
+    return response;
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(`[${getTimestamp()}] [API FAILURE] Request failed after ${duration}ms`);
+
+    // Log detailed error information
+    await logErrorResponse(error);
+
+    // Re-throw with enhanced error message
+    if (error.response?.status === 401) {
+      throw new Error(`API authentication failed (401 Unauthorized). Please check your SUPERMODEL_API_KEY environment variable.`);
+    } else if (error.response?.status === 403) {
+      throw new Error(`API access forbidden (403 Forbidden). Your API key may not have permission to access this resource.`);
+    } else if (error.response?.status >= 500) {
+      throw new Error(`Supermodel API server error (${error.response.status}). The service may be temporarily unavailable.`);
+    }
+
+    throw error;
+  }
 }
 
 /**
@@ -612,32 +769,49 @@ async function handleLegacyMode(
     return asTextContentResult(await maybeFilter(jq_filter, response));
   } catch (error: any) {
     if (isJqError(error)) {
-      return asErrorResult(error.message);
+      return asErrorResult(`jq filter error: ${error.message}`);
     }
 
-    // Enhanced error logging
-    console.error('[ERROR] API call failed:', error);
-    console.error('[ERROR] Error name:', error.name);
-    console.error('[ERROR] Error message:', error.message);
-    console.error('[ERROR] Error stack:', error.stack);
+    // Error details are already logged by fetchFromApi and logErrorResponse
+    // Just return a user-friendly error message with specifics
+
+    let errorMessage = 'API call failed: ';
 
     if (error.response) {
-      console.error('[ERROR] Response status:', error.response.status);
-      console.error('[ERROR] Response statusText:', error.response.statusText);
-      console.error('[ERROR] Response headers:', error.response.headers);
-      try {
-        const responseText = await error.response.text();
-        console.error('[ERROR] Response body:', responseText);
-      } catch (e) {
-        console.error('[ERROR] Could not read response body');
+      const status = error.response.status;
+      errorMessage += `HTTP ${status} - `;
+
+      switch (status) {
+        case 401:
+          errorMessage += 'Authentication failed. Please check your SUPERMODEL_API_KEY environment variable is set correctly.';
+          break;
+        case 403:
+          errorMessage += 'Access forbidden. Your API key may not have permission for this operation.';
+          break;
+        case 404:
+          errorMessage += 'API endpoint not found. The service URL may be incorrect.';
+          break;
+        case 429:
+          errorMessage += 'Rate limit exceeded. Please try again later.';
+          break;
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          errorMessage += 'Server error. The Supermodel API may be temporarily unavailable.';
+          break;
+        default:
+          errorMessage += error.message || 'Unknown error occurred.';
       }
+    } else if (error.request) {
+      errorMessage += 'No response received from server. Check your network connection or the service may be down.';
+    } else {
+      errorMessage += error.message || String(error);
     }
 
-    if (error.request) {
-      console.error('[ERROR] Request was made but no response received');
-    }
+    errorMessage += '\n\nCheck the MCP server logs (stderr) for detailed diagnostic information.';
 
-    return asErrorResult(`API call failed: ${error.message || String(error)}. Check server logs for details.`);
+    return asErrorResult(errorMessage);
   }
 }
 
