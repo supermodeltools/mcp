@@ -10,6 +10,7 @@ import archiver from 'archiver';
 import ignore, { Ignore } from 'ignore';
 import { randomBytes } from 'crypto';
 import { MAX_ZIP_SIZE_BYTES, ZIP_CLEANUP_AGE_MS } from '../constants';
+import * as logger from './logger';
 
 /**
  * Standard exclusions for security and size optimization
@@ -138,8 +139,8 @@ export async function zipRepository(
   const zipFileName = `supermodel-${randomBytes(8).toString('hex')}.zip`;
   const zipPath = join(tempDir, zipFileName);
 
-  console.error('[DEBUG] Creating ZIP:', zipPath);
-  console.error('[DEBUG] Source directory:', directoryPath);
+  logger.debug('Creating ZIP:', zipPath);
+  logger.debug('Source directory:', directoryPath);
 
   // Create ZIP archive
   let fileCount = 0;
@@ -159,9 +160,9 @@ export async function zipRepository(
 
   archive.on('warning', (err) => {
     if (err.code === 'ENOENT') {
-      console.error('[WARN] File not found (skipping):', err.message);
+      logger.warn('File not found (skipping):', err.message);
     } else {
-      console.error('[WARN] Archive warning:', err.message);
+      logger.warn('Archive warning:', err.message);
     }
   });
 
@@ -213,18 +214,18 @@ export async function zipRepository(
   const zipStats = await fs.stat(zipPath);
   const zipSizeBytes = zipStats.size;
 
-  console.error('[DEBUG] ZIP created successfully');
-  console.error('[DEBUG] Files included:', fileCount);
-  console.error('[DEBUG] ZIP size:', formatBytes(zipSizeBytes));
+  logger.debug('ZIP created successfully');
+  logger.debug('Files included:', fileCount);
+  logger.debug('ZIP size:', formatBytes(zipSizeBytes));
 
   // Create cleanup function
   const cleanup = async () => {
     try {
       await fs.unlink(zipPath);
-      console.error('[DEBUG] Cleaned up ZIP:', zipPath);
+      logger.debug('Cleaned up ZIP:', zipPath);
     } catch (error: any) {
       if (error.code !== 'ENOENT') {
-        console.error('[WARN] Failed to cleanup ZIP:', error.message);
+        logger.warn('Failed to cleanup ZIP:', error.message);
       }
     }
   };
@@ -265,11 +266,11 @@ async function buildIgnoreFilter(
 
     if (patterns.length > 0) {
       ig.add(patterns);
-      console.error('[DEBUG] Loaded .gitignore with', patterns.length, 'patterns');
+      logger.debug('Loaded .gitignore with', patterns.length, 'patterns');
     }
   } catch (error: any) {
     if (error.code !== 'ENOENT') {
-      console.error('[WARN] Failed to read .gitignore:', error.message);
+      logger.warn('Failed to read .gitignore:', error.message);
     }
   }
 
@@ -291,7 +292,7 @@ async function addFilesRecursively(
     entries = await fs.readdir(currentDir);
   } catch (error: any) {
     if (error.code === 'EACCES') {
-      console.error('[WARN] Permission denied:', currentDir);
+      logger.warn('Permission denied:', currentDir);
       return;
     }
     throw error;
@@ -317,13 +318,13 @@ async function addFilesRecursively(
         // File disappeared, skip
         continue;
       }
-      console.error('[WARN] Failed to stat:', fullPath, error.message);
+      logger.warn('Failed to stat:', fullPath, error.message);
       continue;
     }
 
     // Skip symlinks to prevent following links outside the repository
     if (stats.isSymbolicLink()) {
-      console.error('[WARN] Skipping symlink:', fullPath);
+      logger.warn('Skipping symlink:', fullPath);
       continue;
     }
 
@@ -341,7 +342,7 @@ async function addFilesRecursively(
       try {
         archive.file(fullPath, { name: normalizedRelativePath });
       } catch (error: any) {
-        console.error('[WARN] Failed to add file:', fullPath, error.message);
+        logger.warn('Failed to add file:', fullPath, error.message);
       }
     }
     // Skip other special files (sockets, FIFOs, etc.)
@@ -389,15 +390,15 @@ export async function cleanupOldZips(maxAgeMs: number = ZIP_CLEANUP_AGE_MS): Pro
       } catch (error: any) {
         // File might have been deleted already, ignore
         if (error.code !== 'ENOENT') {
-          console.error('[WARN] Failed to cleanup:', fullPath, error.message);
+          logger.warn('Failed to cleanup:', fullPath, error.message);
         }
       }
     }
 
     if (removedCount > 0) {
-      console.error('[DEBUG] Cleaned up', removedCount, 'old ZIP files');
+      logger.debug('Cleaned up', removedCount, 'old ZIP files');
     }
   } catch (error: any) {
-    console.error('[WARN] Failed to cleanup temp directory:', error.message);
+    logger.warn('Failed to cleanup temp directory:', error.message);
   }
 }
