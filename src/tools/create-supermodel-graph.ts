@@ -117,10 +117,6 @@ Query types available: graph_status, summary, get_node, search, list_nodes, func
         type: 'string',
         description: 'Path to the repository directory to analyze. Can be a subdirectory for faster analysis and smaller graph size (e.g., "/repo/src/core" instead of "/repo").',
       },
-      'Idempotency-Key': {
-        type: 'string',
-        description: 'Optional cache key in format {repo}:{type}:{hash}. If not provided, will be auto-generated using git commit hash or random UUID. Provide a previously used idempotency key to fetch a cached response, for example with a different filter.',
-      },
       query: {
         type: 'string',
         enum: [
@@ -227,7 +223,6 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   const {
     jq_filter,
     directory,
-    'Idempotency-Key': providedIdempotencyKey,
     query,
     targetId,
     searchText,
@@ -245,18 +240,9 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     return asErrorResult('Directory argument is required and must be a string path');
   }
 
-  // Generate or validate idempotency key
-  let idempotencyKey: string;
-  let keyGenerated = false;
-
-  if (!providedIdempotencyKey || typeof providedIdempotencyKey !== 'string') {
-    idempotencyKey = generateIdempotencyKey(directory);
-    keyGenerated = true;
-    console.error('[DEBUG] Auto-generated idempotency key:', idempotencyKey);
-  } else {
-    idempotencyKey = providedIdempotencyKey;
-    console.error('[DEBUG] Using provided idempotency key:', idempotencyKey);
-  }
+  // Generate idempotency key for API request
+  const idempotencyKey = generateIdempotencyKey(directory);
+  console.error('[DEBUG] Auto-generated idempotency key:', idempotencyKey);
 
   // Check if we can skip zipping (graph already cached)
   // Use get() atomically to avoid TOCTOU race condition
@@ -281,26 +267,6 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
       includeRaw,
       jq_filter,
     });
-
-    // Add metadata about cache hit
-    if (keyGenerated && result.content?.[0]?.type === 'text') {
-      const originalText = result.content[0].text;
-      let responseData;
-
-      try {
-        responseData = JSON.parse(originalText);
-        // Add metadata about auto-generated key
-        responseData._metadata = {
-          ...responseData._metadata,
-          idempotencyKey,
-          idempotencyKeyGenerated: true
-        };
-        result.content[0].text = JSON.stringify(responseData, null, 2);
-      } catch {
-        // Not JSON, prepend key info as text
-        result.content[0].text = `[Auto-generated Idempotency-Key: ${idempotencyKey}]\n\n${originalText}`;
-      }
-    }
 
     return result;
   }
@@ -361,26 +327,6 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     } else {
       // Legacy mode: use jq_filter directly on API response
       result = await handleLegacyMode(client, zipPath, idempotencyKey, jq_filter);
-    }
-
-    // If key was auto-generated, add it to the response
-    if (keyGenerated && result.content && result.content[0]?.type === 'text') {
-      const originalText = result.content[0].text;
-      let responseData;
-
-      try {
-        responseData = JSON.parse(originalText);
-        // Add metadata about auto-generated key
-        responseData._metadata = {
-          ...responseData._metadata,
-          idempotencyKey,
-          idempotencyKeyGenerated: true
-        };
-        result.content[0].text = JSON.stringify(responseData, null, 2);
-      } catch {
-        // Not JSON, prepend key info as text
-        result.content[0].text = `[Auto-generated Idempotency-Key: ${idempotencyKey}]\n\n${originalText}`;
-      }
     }
 
     return result;

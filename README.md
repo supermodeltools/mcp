@@ -150,22 +150,10 @@ Analyzes code structure, dependencies, and relationships across a repository. Us
 |----------|------|----------|-------------|
 | `directory` | string | Yes* | Path to repository directory (automatic zipping) |
 | `file` | string | Yes* | Path to pre-zipped archive (deprecated) |
-| `Idempotency-Key` | string | Yes | Cache key in format `{repo}:{type}:{hash}` |
 | `query` | string | No | Query type (summary, search, list_nodes, etc.) |
 | `jq_filter` | string | No | jq filter for custom data extraction |
 
 \* Either `directory` (recommended) or `file` must be provided
-
-**Quick start:**
-
-```bash
-# 1. Get commit hash for cache key
-git rev-parse --short HEAD
-# Output: abc123
-
-# 2. Ask Claude to analyze (no manual zipping needed!)
-# "Analyze the codebase at /path/to/repo using key myproject:supermodel:abc123"
-```
 
 **Example prompts:**
 - "Analyze the codebase at . to understand its architecture"
