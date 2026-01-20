@@ -310,13 +310,19 @@ async function addFilesRecursively(
 
     let stats;
     try {
-      stats = await fs.stat(fullPath);
+      stats = await fs.lstat(fullPath);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        // Symlink pointing to non-existent file, skip
+        // File disappeared, skip
         continue;
       }
       console.error('[WARN] Failed to stat:', fullPath, error.message);
+      continue;
+    }
+
+    // Skip symlinks to prevent following links outside the repository
+    if (stats.isSymbolicLink()) {
+      console.error('[WARN] Skipping symlink:', fullPath);
       continue;
     }
 
@@ -337,7 +343,7 @@ async function addFilesRecursively(
         console.error('[WARN] Failed to add file:', fullPath, error.message);
       }
     }
-    // Skip symlinks, sockets, etc.
+    // Skip other special files (sockets, FIFOs, etc.)
   }
 }
 
