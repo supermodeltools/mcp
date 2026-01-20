@@ -104,10 +104,39 @@ export interface ZipOptions {
 
   /** Custom patterns to exclude (in addition to standard exclusions) */
   additionalExclusions?: string[];
+
+  /**
+   * Whether to include .gitignore files in the ZIP archive (default: true)
+   *
+   * Set to false to exclude all .gitignore files from the archive.
+   * This can be useful for:
+   * - Reducing archive size when .gitignore files are not needed for analysis
+   * - Security: preventing exposure of ignore patterns that might reveal project structure
+   *
+   * Note: This only controls whether .gitignore files themselves are included.
+   * The patterns defined in .gitignore files are always respected regardless of this setting.
+   *
+   * Default: true (maintains backward compatibility)
+   */
+  includeGitignore?: boolean;
 }
 
 /**
  * Create a ZIP archive of a directory with gitignore and dockerignore support
+ *
+ * @param directoryPath - Path to the directory to archive
+ * @param options - Configuration options for ZIP creation
+ * @param options.maxSizeBytes - Maximum ZIP size in bytes (default: 500MB)
+ * @param options.additionalExclusions - Custom patterns to exclude
+ * @param options.includeGitignore - Whether to include .gitignore files (default: true)
+ * @returns Promise resolving to ZipResult with path, cleanup function, and metadata
+ *
+ * @example
+ * // Create ZIP excluding .gitignore files
+ * const result = await zipRepository('/path/to/repo', {
+ *   includeGitignore: false,
+ *   maxSizeBytes: 100 * 1024 * 1024 // 100MB
+ * });
  */
 export async function zipRepository(
   directoryPath: string,
@@ -141,7 +170,11 @@ export async function zipRepository(
   }
 
   // Parse gitignore files
-  const ignoreFilter = await buildIgnoreFilter(directoryPath, options.additionalExclusions);
+  const ignoreFilter = await buildIgnoreFilter(
+    directoryPath,
+    options.additionalExclusions,
+    options.includeGitignore
+  );
 
   // Estimate directory size before starting ZIP creation
   logger.debug('Estimating directory size...');
@@ -342,10 +375,15 @@ async function estimateDirectorySize(
 /**
  * Build ignore filter from .gitignore, .dockerignore files and standard exclusions
  * Recursively finds and parses .gitignore files in subdirectories
+ *
+ * @param rootDir - Root directory to build filter for
+ * @param additionalExclusions - Additional patterns to exclude
+ * @param includeGitignore - Whether to include .gitignore files in the archive (default: true)
  */
 async function buildIgnoreFilter(
   rootDir: string,
-  additionalExclusions: string[] = []
+  additionalExclusions: string[] = [],
+  includeGitignore: boolean = true
 ): Promise<Ignore> {
   const ig = ignore();
 
@@ -355,6 +393,12 @@ async function buildIgnoreFilter(
   // Add custom exclusions
   if (additionalExclusions.length > 0) {
     ig.add(additionalExclusions);
+  }
+
+  // Exclude .gitignore files if requested
+  if (includeGitignore === false) {
+    ig.add(['.gitignore', '**/.gitignore']);
+    logger.debug('Excluding .gitignore files from archive');
   }
 
   // Recursively find and parse all .gitignore files
