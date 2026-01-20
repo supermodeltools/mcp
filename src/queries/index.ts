@@ -58,9 +58,10 @@ export async function executeQuery(
 
   // All other queries require a graph
   if (!graph) {
-    return createError('CACHE_MISS', `Graph not found in cache for key '${cacheKey}'`, {
+    console.error('[ERROR] Cache miss for key:', cacheKey);
+    return createError('CACHE_MISS', `Graph not cached. The query engine will fetch it from the API.`, {
       retryable: true,
-      detail: 'Re-call with the same file and idempotencyKey to fetch from API',
+      detail: 'This is a normal first-time operation. The graph will be cached for subsequent queries.',
     });
   }
 
@@ -114,10 +115,16 @@ function dispatchQuery(
     // Not implemented yet
     case 'uses_in_file':
     case 'list_files_in_dir':
-      return createError('INVALID_QUERY', `Query type '${params.query}' is not yet implemented`);
+      console.error('[ERROR] Unimplemented query type requested:', params.query);
+      return createError('INVALID_QUERY', `Query type '${params.query}' is not yet implemented`, {
+        detail: 'This query is planned for a future release',
+      });
 
     default:
-      return createError('INVALID_QUERY', `Unknown query type: ${params.query}`);
+      console.error('[ERROR] Unknown query type:', params.query);
+      return createError('INVALID_QUERY', `Unknown query type: ${params.query}`, {
+        detail: 'Use graph_status to see available query types',
+      });
   }
 }
 
@@ -151,8 +158,13 @@ async function executeJqQuery(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return createError('BAD_JQ', `jq filter error: ${message}`, {
-      detail: params.jq_filter,
+    // Log detailed error for debugging
+    console.error('[ERROR] jq filter execution failed');
+    console.error('[ERROR] Filter:', params.jq_filter);
+    console.error('[ERROR] Error:', message);
+
+    return createError('BAD_JQ', `Invalid jq filter syntax. ${message}`, {
+      detail: `Filter: ${params.jq_filter}`,
     });
   }
 }

@@ -31,19 +31,27 @@ export function functionCallsIn(
   source: 'cache' | 'api'
 ): QueryResponse<NodesAndEdgesResult> | QueryError {
   if (!params.targetId) {
-    return createError('INVALID_PARAMS', 'targetId is required for function_calls_in query');
+    console.error('[ERROR] function_calls_in called without targetId');
+    return createError('INVALID_PARAMS', 'Missing required parameter: targetId', {
+      detail: 'Use search or list_nodes with labels=["Function"] to find function IDs',
+    });
   }
 
   // Verify target exists and is a function
   const targetNode = graph.nodeById.get(params.targetId);
   if (!targetNode) {
-    return createError('NOT_FOUND', `Node with id '${params.targetId}' not found`, {
+    console.error('[ERROR] Node not found:', params.targetId);
+    return createError('NOT_FOUND', `Node not found: ${params.targetId}`, {
       detail: 'Use search or list_nodes with labels=["Function"] to discover function IDs',
     });
   }
 
   if (targetNode.labels?.[0] !== 'Function') {
-    return createError('INVALID_PARAMS', `Node '${params.targetId}' is not a Function (got ${targetNode.labels?.[0]})`);
+    const actualLabel = targetNode.labels?.[0] || 'unknown';
+    console.error('[ERROR] Node is not a Function:', params.targetId, 'is', actualLabel);
+    return createError('INVALID_PARAMS', `Node is not a Function (found ${actualLabel})`, {
+      detail: 'This query only works on Function nodes. Use search with labels=["Function"] to find functions',
+    });
   }
 
   const adj = graph.callAdj.get(params.targetId);
@@ -99,19 +107,27 @@ export function functionCallsOut(
   source: 'cache' | 'api'
 ): QueryResponse<NodesAndEdgesResult> | QueryError {
   if (!params.targetId) {
-    return createError('INVALID_PARAMS', 'targetId is required for function_calls_out query');
+    console.error('[ERROR] function_calls_out called without targetId');
+    return createError('INVALID_PARAMS', 'Missing required parameter: targetId', {
+      detail: 'Use search or list_nodes with labels=["Function"] to find function IDs',
+    });
   }
 
   // Verify target exists and is a function
   const targetNode = graph.nodeById.get(params.targetId);
   if (!targetNode) {
-    return createError('NOT_FOUND', `Node with id '${params.targetId}' not found`, {
+    console.error('[ERROR] Node not found:', params.targetId);
+    return createError('NOT_FOUND', `Node not found: ${params.targetId}`, {
       detail: 'Use search or list_nodes with labels=["Function"] to discover function IDs',
     });
   }
 
   if (targetNode.labels?.[0] !== 'Function') {
-    return createError('INVALID_PARAMS', `Node '${params.targetId}' is not a Function (got ${targetNode.labels?.[0]})`);
+    const actualLabel = targetNode.labels?.[0] || 'unknown';
+    console.error('[ERROR] Node is not a Function:', params.targetId, 'is', actualLabel);
+    return createError('INVALID_PARAMS', `Node is not a Function (found ${actualLabel})`, {
+      detail: 'This query only works on Function nodes. Use search with labels=["Function"] to find functions',
+    });
   }
 
   const adj = graph.callAdj.get(params.targetId);
@@ -172,20 +188,33 @@ export function definitionsInFile(
   if (params.targetId) {
     const targetNode = graph.nodeById.get(params.targetId);
     if (!targetNode) {
-      return createError('NOT_FOUND', `Node with id '${params.targetId}' not found`);
+      console.error('[ERROR] Node not found:', params.targetId);
+      return createError('NOT_FOUND', `Node not found: ${params.targetId}`, {
+        detail: 'Use search or list_nodes with labels=["File"] to find file nodes',
+      });
     }
     if (targetNode.labels?.[0] !== 'File') {
-      return createError('INVALID_PARAMS', `Node '${params.targetId}' is not a File (got ${targetNode.labels?.[0]})`);
+      const actualLabel = targetNode.labels?.[0] || 'unknown';
+      console.error('[ERROR] Node is not a File:', params.targetId, 'is', actualLabel);
+      return createError('INVALID_PARAMS', `Node is not a File (found ${actualLabel})`, {
+        detail: 'This query requires a File node. Use search with labels=["File"] to find files',
+      });
     }
     filePath = targetNode.properties?.filePath as string || targetNode.properties?.path as string;
   } else if (params.filePathPrefix) {
     filePath = params.filePathPrefix;
   } else {
-    return createError('INVALID_PARAMS', 'Either targetId (file node ID) or filePathPrefix is required');
+    console.error('[ERROR] definitions_in_file called without targetId or filePathPrefix');
+    return createError('INVALID_PARAMS', 'Missing required parameter: targetId or filePathPrefix', {
+      detail: 'Provide either a file node ID (targetId) or a file path (filePathPrefix)',
+    });
   }
 
   if (!filePath) {
-    return createError('INVALID_PARAMS', 'Could not determine file path');
+    console.error('[ERROR] Could not determine file path from node');
+    return createError('INVALID_PARAMS', 'Could not determine file path from the provided node', {
+      detail: 'The node is missing filePath or path properties',
+    });
   }
 
   const normalizedPath = normalizePath(filePath);
@@ -202,8 +231,9 @@ export function definitionsInFile(
     }
 
     if (resolvedPath === normalizedPath) {
-      return createError('NOT_FOUND', `No definitions found for file '${filePath}'`, {
-        detail: 'File may not exist in the analyzed codebase or has no class/function/type definitions',
+      console.error('[ERROR] File not found in codebase:', filePath);
+      return createError('NOT_FOUND', `File not found in analyzed codebase: ${filePath}`, {
+        detail: 'The file may not exist, may be excluded by .gitignore, or has no definitions',
       });
     }
   }
@@ -266,17 +296,26 @@ export function fileImports(
   source: 'cache' | 'api'
 ): QueryResponse<{ imports: NodesResult }> | QueryError {
   if (!params.targetId) {
-    return createError('INVALID_PARAMS', 'targetId is required for file_imports query');
+    console.error('[ERROR] file_imports called without targetId');
+    return createError('INVALID_PARAMS', 'Missing required parameter: targetId', {
+      detail: 'Use search or list_nodes with labels=["File"] to find file nodes',
+    });
   }
 
   const targetNode = graph.nodeById.get(params.targetId);
   if (!targetNode) {
-    return createError('NOT_FOUND', `Node with id '${params.targetId}' not found`);
+    console.error('[ERROR] Node not found:', params.targetId);
+    return createError('NOT_FOUND', `Node not found: ${params.targetId}`, {
+      detail: 'Use search or list_nodes to discover valid node IDs',
+    });
   }
 
   const label = targetNode.labels?.[0];
   if (label !== 'File' && label !== 'LocalModule' && label !== 'ExternalModule') {
-    return createError('INVALID_PARAMS', `Node '${params.targetId}' is not a File/Module (got ${label})`);
+    console.error('[ERROR] Node is not a File/Module:', params.targetId, 'is', label);
+    return createError('INVALID_PARAMS', `Node is not a File/Module (found ${label})`, {
+      detail: 'This query requires a File, LocalModule, or ExternalModule node',
+    });
   }
 
   const limit = params.limit || DEFAULT_LIMIT;
@@ -405,7 +444,10 @@ export function domainMembership(
   source: 'cache' | 'api'
 ): QueryResponse<{ domain: string; members: NodesResult }> | QueryError {
   if (!params.searchText && !params.targetId) {
-    return createError('INVALID_PARAMS', 'searchText (domain name) or targetId (domain node ID) is required');
+    console.error('[ERROR] domain_membership called without searchText or targetId');
+    return createError('INVALID_PARAMS', 'Missing required parameter: searchText or targetId', {
+      detail: 'Provide either a domain name (searchText) or domain node ID (targetId)',
+    });
   }
 
   let domainName: string;
@@ -413,7 +455,10 @@ export function domainMembership(
   if (params.targetId) {
     const node = graph.nodeById.get(params.targetId);
     if (!node) {
-      return createError('NOT_FOUND', `Node with id '${params.targetId}' not found`);
+      console.error('[ERROR] Node not found:', params.targetId);
+      return createError('NOT_FOUND', `Node not found: ${params.targetId}`, {
+        detail: 'Use domain_map to discover domain nodes',
+      });
     }
     domainName = node.properties?.name as string;
   } else {
@@ -422,7 +467,8 @@ export function domainMembership(
 
   const domainEntry = graph.domainIndex.get(domainName);
   if (!domainEntry) {
-    return createError('NOT_FOUND', `Domain '${domainName}' not found`, {
+    console.error('[ERROR] Domain not found:', domainName);
+    return createError('NOT_FOUND', `Domain not found: ${domainName}`, {
       detail: 'Use domain_map to list available domains',
     });
   }
@@ -459,12 +505,18 @@ export function neighborhood(
   source: 'cache' | 'api'
 ): QueryResponse<NodesAndEdgesResult> | QueryError {
   if (!params.targetId) {
-    return createError('INVALID_PARAMS', 'targetId is required for neighborhood query');
+    console.error('[ERROR] neighborhood called without targetId');
+    return createError('INVALID_PARAMS', 'Missing required parameter: targetId', {
+      detail: 'Use search or list_nodes to find a node, then explore its neighborhood',
+    });
   }
 
   const targetNode = graph.nodeById.get(params.targetId);
   if (!targetNode) {
-    return createError('NOT_FOUND', `Node with id '${params.targetId}' not found`);
+    console.error('[ERROR] Node not found:', params.targetId);
+    return createError('NOT_FOUND', `Node not found: ${params.targetId}`, {
+      detail: 'Use search or list_nodes to discover valid node IDs',
+    });
   }
 
   const depth = Math.min(params.depth || 1, MAX_NEIGHBORHOOD_DEPTH);

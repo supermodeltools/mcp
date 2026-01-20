@@ -216,7 +216,8 @@ function generateIdempotencyKey(directory: string): string {
 
 export const handler: HandlerFunction = async (client: ClientContext, args: Record<string, unknown> | undefined) => {
   if (!args) {
-    return asErrorResult('No arguments provided');
+    console.error('[ERROR] No arguments provided to handler');
+    return asErrorResult('Missing required arguments. Provide a "directory" parameter.');
   }
 
   const {
@@ -236,7 +237,8 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
 
   // Validate directory
   if (!directory || typeof directory !== 'string') {
-    return asErrorResult('Directory argument is required and must be a string path');
+    console.error('[ERROR] Invalid directory parameter:', directory);
+    return asErrorResult('Invalid "directory" parameter. Provide a valid directory path as a string.');
   }
 
   // Generate idempotency key for API request
@@ -283,23 +285,29 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
 
     console.error('[DEBUG] Auto-zip complete:', zipResult.fileCount, 'files,', formatBytes(zipResult.sizeBytes));
   } catch (error: any) {
-    console.error('[ERROR] Auto-zip failed:', error.message);
+    // Log full error details for debugging
+    console.error('[ERROR] Auto-zip failed');
+    console.error('[ERROR] Error type:', error.name || 'Error');
+    console.error('[ERROR] Error message:', error.message);
+    if (error.stack) {
+      console.error('[ERROR] Stack trace:', error.stack);
+    }
 
-    // Provide helpful error messages
+    // Return user-friendly, actionable error messages
     if (error.message.includes('does not exist')) {
-      return asErrorResult(`Directory does not exist: ${directory}`);
+      return asErrorResult(`Directory not found. Please verify the path exists: ${directory}`);
     }
     if (error.message.includes('Permission denied')) {
-      return asErrorResult(`Permission denied accessing directory: ${directory}`);
+      return asErrorResult(`Permission denied. Check that you have read access to: ${directory}`);
     }
     if (error.message.includes('exceeds limit')) {
-      return asErrorResult(error.message);
+      return asErrorResult(error.message + '\n\nTry analyzing a subdirectory or excluding more files.');
     }
     if (error.message.includes('ENOSPC')) {
-      return asErrorResult('Insufficient disk space to create ZIP archive');
+      return asErrorResult('Insufficient disk space. Free up space and try again.');
     }
 
-    return asErrorResult(`Failed to create ZIP archive: ${error.message}`);
+    return asErrorResult(`Failed to create ZIP archive. Check the MCP server logs for details.`);
   }
 
   // Execute query with cleanup handling
@@ -454,43 +462,40 @@ async function handleQueryMode(
       result = await executeQuery(queryParams, apiResponse);
     } catch (error: any) {
       // Error details are already logged by fetchFromApi and logErrorResponse
-      // Return a user-friendly error message
+      // Return a user-friendly, actionable error message
 
-      let errorMessage = 'API call failed: ';
+      let errorMessage = '';
 
       if (error.response) {
         const status = error.response.status;
-        errorMessage += `HTTP ${status} - `;
 
         switch (status) {
           case 401:
-            errorMessage += 'Authentication failed. Please check your SUPERMODEL_API_KEY environment variable is set correctly.';
+            errorMessage = 'Authentication failed. Set your SUPERMODEL_API_KEY environment variable and restart the MCP server.';
             break;
           case 403:
-            errorMessage += 'Access forbidden. Your API key may not have permission for this operation.';
+            errorMessage = 'Access forbidden. Your API key does not have permission for this operation. Contact support if this is unexpected.';
             break;
           case 404:
-            errorMessage += 'API endpoint not found. The service URL may be incorrect.';
+            errorMessage = 'API endpoint not found. The service URL may be incorrect. Check your SUPERMODEL_BASE_URL configuration.';
             break;
           case 429:
-            errorMessage += 'Rate limit exceeded. Please try again later.';
+            errorMessage = 'Rate limit exceeded. Wait a few minutes and try again.';
             break;
           case 500:
           case 502:
           case 503:
           case 504:
-            errorMessage += 'Server error. The Supermodel API may be temporarily unavailable.';
+            errorMessage = 'Server error. The Supermodel API is temporarily unavailable. Try again in a few minutes.';
             break;
           default:
-            errorMessage += error.message || 'Unknown error occurred.';
+            errorMessage = `API error (HTTP ${status}). Check the MCP server logs for details.`;
         }
       } else if (error.request) {
-        errorMessage += 'No response received from server. Check your network connection or the service may be down.';
+        errorMessage = 'No response from server. Check your network connection and verify the API is reachable.';
       } else {
-        errorMessage += error.message || String(error);
+        errorMessage = 'Request failed. Check the MCP server logs for details.';
       }
-
-      errorMessage += '\n\nCheck the MCP server logs (stderr) for detailed diagnostic information.';
 
       return asErrorResult(errorMessage);
     }
@@ -768,47 +773,45 @@ async function handleLegacyMode(
     return asTextContentResult(await maybeFilter(jq_filter, response));
   } catch (error: any) {
     if (isJqError(error)) {
-      return asErrorResult(`jq filter error: ${error.message}`);
+      console.error('[ERROR] jq filter error:', error.message);
+      return asErrorResult(`Invalid jq filter syntax. Check your filter and try again.`);
     }
 
     // Error details are already logged by fetchFromApi and logErrorResponse
-    // Just return a user-friendly error message with specifics
+    // Return a user-friendly, actionable error message
 
-    let errorMessage = 'API call failed: ';
+    let errorMessage = '';
 
     if (error.response) {
       const status = error.response.status;
-      errorMessage += `HTTP ${status} - `;
 
       switch (status) {
         case 401:
-          errorMessage += 'Authentication failed. Please check your SUPERMODEL_API_KEY environment variable is set correctly.';
+          errorMessage = 'Authentication failed. Set your SUPERMODEL_API_KEY environment variable and restart the MCP server.';
           break;
         case 403:
-          errorMessage += 'Access forbidden. Your API key may not have permission for this operation.';
+          errorMessage = 'Access forbidden. Your API key does not have permission for this operation. Contact support if this is unexpected.';
           break;
         case 404:
-          errorMessage += 'API endpoint not found. The service URL may be incorrect.';
+          errorMessage = 'API endpoint not found. The service URL may be incorrect. Check your SUPERMODEL_BASE_URL configuration.';
           break;
         case 429:
-          errorMessage += 'Rate limit exceeded. Please try again later.';
+          errorMessage = 'Rate limit exceeded. Wait a few minutes and try again.';
           break;
         case 500:
         case 502:
         case 503:
         case 504:
-          errorMessage += 'Server error. The Supermodel API may be temporarily unavailable.';
+          errorMessage = 'Server error. The Supermodel API is temporarily unavailable. Try again in a few minutes.';
           break;
         default:
-          errorMessage += error.message || 'Unknown error occurred.';
+          errorMessage = `API error (HTTP ${status}). Check the MCP server logs for details.`;
       }
     } else if (error.request) {
-      errorMessage += 'No response received from server. Check your network connection or the service may be down.';
+      errorMessage = 'No response from server. Check your network connection and verify the API is reachable.';
     } else {
-      errorMessage += error.message || String(error);
+      errorMessage = 'Request failed. Check the MCP server logs for details.';
     }
-
-    errorMessage += '\n\nCheck the MCP server logs (stderr) for detailed diagnostic information.';
 
     return asErrorResult(errorMessage);
   }

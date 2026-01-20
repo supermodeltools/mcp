@@ -29,12 +29,16 @@ export function getNode(
   source: 'cache' | 'api'
 ): QueryResponse<{ node: NodeDescriptor | null; raw?: unknown }> | QueryError {
   if (!params.targetId) {
-    return createError('INVALID_PARAMS', 'targetId is required for get_node query');
+    console.error('[ERROR] get_node called without targetId');
+    return createError('INVALID_PARAMS', 'Missing required parameter: targetId', {
+      detail: 'Use search or list_nodes to find valid node IDs, then call get_node with the targetId',
+    });
   }
 
   const node = graph.nodeById.get(params.targetId);
   if (!node) {
-    return createError('NOT_FOUND', `Node with id '${params.targetId}' not found`, {
+    console.error('[ERROR] Node not found:', params.targetId);
+    return createError('NOT_FOUND', `Node not found: ${params.targetId}`, {
       detail: 'Use search or list_nodes to discover valid node IDs',
     });
   }
@@ -66,7 +70,10 @@ export function search(
   source: 'cache' | 'api'
 ): QueryResponse<NodesResult> | QueryError {
   if (!params.searchText) {
-    return createError('INVALID_PARAMS', 'searchText is required for search query');
+    console.error('[ERROR] search called without searchText');
+    return createError('INVALID_PARAMS', 'Missing required parameter: searchText', {
+      detail: 'Provide a search term to find nodes by name substring',
+    });
   }
 
   const searchLower = params.searchText.toLowerCase();
@@ -141,7 +148,15 @@ export function listNodes(
     try {
       regex = new RegExp(namePattern, 'i');
     } catch (e) {
-      return createError('INVALID_PARAMS', `Invalid namePattern regex: ${namePattern}`);
+      // Log detailed error for debugging
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.error('[ERROR] Invalid regex pattern');
+      console.error('[ERROR] Pattern:', namePattern);
+      console.error('[ERROR] Error:', errorMsg);
+
+      return createError('INVALID_PARAMS', `Invalid regex pattern: ${errorMsg}`, {
+        detail: `Pattern: ${namePattern}`,
+      });
     }
   }
 

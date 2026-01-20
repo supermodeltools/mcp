@@ -118,15 +118,24 @@ export async function zipRepository(
   try {
     const stats = await fs.stat(directoryPath);
     if (!stats.isDirectory()) {
-      throw new Error(`Path is not a directory: ${directoryPath}`);
+      const errorMsg = `Path is not a directory: ${directoryPath}`;
+      console.error('[ERROR]', errorMsg);
+      throw new Error(errorMsg);
     }
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      throw new Error(`Directory does not exist: ${directoryPath}`);
+      const errorMsg = `Directory does not exist: ${directoryPath}`;
+      console.error('[ERROR]', errorMsg);
+      throw new Error(errorMsg);
     }
     if (error.code === 'EACCES') {
-      throw new Error(`Permission denied accessing directory: ${directoryPath}`);
+      const errorMsg = `Permission denied accessing directory: ${directoryPath}`;
+      console.error('[ERROR]', errorMsg);
+      throw new Error(errorMsg);
     }
+    // Re-throw unknown errors with logging
+    console.error('[ERROR] Failed to validate directory:', directoryPath);
+    console.error('[ERROR] Error:', error.message);
     throw error;
   }
 
@@ -154,6 +163,7 @@ export async function zipRepository(
   let archiveError: Error | null = null;
 
   archive.on('error', (err) => {
+    console.error('[ERROR] Archive error:', err.message);
     archiveError = err;
   });
 
@@ -172,12 +182,13 @@ export async function zipRepository(
 
     // Check size limit
     if (totalSize > maxSizeBytes) {
-      archive.abort();
-      archiveError = new Error(
+      const errorMsg =
         `ZIP size exceeds limit (${formatBytes(maxSizeBytes)}). ` +
         `Current size: ${formatBytes(totalSize)}. ` +
-        `Consider excluding more directories or analyzing a subdirectory.`
-      );
+        `Consider excluding more directories or analyzing a subdirectory.`;
+      console.error('[ERROR]', errorMsg);
+      archive.abort();
+      archiveError = new Error(errorMsg);
     }
   });
 
@@ -199,11 +210,15 @@ export async function zipRepository(
         resolve();
       }
     });
-    output.on('error', reject);
+    output.on('error', (err) => {
+      console.error('[ERROR] Output stream error:', err.message);
+      reject(err);
+    });
   });
 
   // Check for errors during archiving
   if (archiveError) {
+    console.error('[ERROR] Archiving failed, cleaning up partial ZIP');
     // Clean up partial ZIP
     await fs.unlink(zipPath).catch(() => {});
     throw archiveError;
@@ -294,6 +309,8 @@ async function addFilesRecursively(
       console.error('[WARN] Permission denied:', currentDir);
       return;
     }
+    console.error('[ERROR] Failed to read directory:', currentDir);
+    console.error('[ERROR] Error:', error.message);
     throw error;
   }
 
