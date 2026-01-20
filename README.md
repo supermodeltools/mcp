@@ -23,7 +23,7 @@ Benchmark your MCP server against real GitHub issues. One command, hard numbers.
 
 [![good first issues](https://img.shields.io/github/issues/greynewell/mcpbr/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/greynewell/mcpbr/labels/good%20first%20issue)
 [![help wanted](https://img.shields.io/github/issues/greynewell/mcpbr/help%20wanted?label=help%20wanted&color=008672)](https://github.com/greynewell/mcpbr/labels/help%20wanted)
-[![roadmap](https://img.shields.io/badge/roadmap-200%2B%20features-blue)](https://github.com/greynewell/mcpbr/projects/2)
+[![roadmap](https://img.shields.io/badge/roadmap-200%2B%20features-blue)](https://github.com/users/greynewell/projects/2)
 
 > Stop guessing if your MCP server actually helps. Get hard numbers comparing tool-assisted vs. baseline agent performance on real GitHub issues.
 
