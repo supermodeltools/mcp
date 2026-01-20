@@ -13,6 +13,7 @@ import { maybeFilter, isJqError } from '../filtering';
 import { executeQuery, getAvailableQueries, isQueryError, QueryType, graphCache } from '../queries';
 import { IndexedGraph } from '../cache/graph-cache';
 import { zipRepository } from '../utils/zip-repository';
+import { MAX_NEIGHBORHOOD_DEPTH } from '../constants';
 
 export const tool: Tool = {
   name: 'explore_codebase',
@@ -294,6 +295,72 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   // Validate directory
   if (!directory || typeof directory !== 'string') {
     return asErrorResult('Directory argument is required and must be a string path');
+  }
+
+  // Validate query type if provided
+  const validQueryTypes = [
+    'graph_status', 'summary', 'get_node', 'search', 'list_nodes',
+    'function_calls_in', 'function_calls_out', 'definitions_in_file',
+    'file_imports', 'domain_map', 'domain_membership', 'neighborhood', 'jq'
+  ];
+  if (query && typeof query === 'string' && !validQueryTypes.includes(query)) {
+    return asErrorResult(
+      `Invalid query type "${query}". Valid types: ${validQueryTypes.join(', ')}`
+    );
+  }
+
+  // Validate depth parameter
+  if (depth !== undefined) {
+    if (typeof depth !== 'number' || !Number.isInteger(depth)) {
+      return asErrorResult('depth must be an integer');
+    }
+    if (depth < 1 || depth > MAX_NEIGHBORHOOD_DEPTH) {
+      return asErrorResult(`depth must be between 1 and ${MAX_NEIGHBORHOOD_DEPTH}`);
+    }
+  }
+
+  // Validate limit parameter
+  if (limit !== undefined) {
+    if (typeof limit !== 'number' || !Number.isInteger(limit)) {
+      return asErrorResult('limit must be an integer');
+    }
+    if (limit < 1) {
+      return asErrorResult('limit must be at least 1');
+    }
+    if (limit > 10000) {
+      return asErrorResult('limit must be 10000 or less');
+    }
+  }
+
+  // Validate labels array
+  const validLabels = [
+    'Function', 'Class', 'Type', 'File', 'Directory',
+    'Domain', 'Subdomain', 'ExternalModule', 'LocalModule'
+  ];
+  if (labels !== undefined) {
+    if (!Array.isArray(labels)) {
+      return asErrorResult('labels must be an array');
+    }
+    const invalidLabels = labels.filter(l => typeof l !== 'string' || !validLabels.includes(l));
+    if (invalidLabels.length > 0) {
+      return asErrorResult(
+        `Invalid labels: ${invalidLabels.join(', ')}. Valid labels: ${validLabels.join(', ')}`
+      );
+    }
+  }
+
+  // Validate relationshipTypes array
+  const validRelationshipTypes = ['calls', 'IMPORTS', 'CONTAINS_FILE', 'CHILD_DIRECTORY', 'DEFINES', 'belongsTo'];
+  if (relationshipTypes !== undefined) {
+    if (!Array.isArray(relationshipTypes)) {
+      return asErrorResult('relationshipTypes must be an array');
+    }
+    const invalidTypes = relationshipTypes.filter(t => typeof t !== 'string' || !validRelationshipTypes.includes(t));
+    if (invalidTypes.length > 0) {
+      return asErrorResult(
+        `Invalid relationship types: ${invalidTypes.join(', ')}. Valid types: ${validRelationshipTypes.join(', ')}`
+      );
+    }
   }
 
   // Generate idempotency key for API request
