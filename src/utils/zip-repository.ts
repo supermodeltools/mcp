@@ -9,6 +9,7 @@ import { tmpdir } from 'os';
 import archiver from 'archiver';
 import ignore, { Ignore } from 'ignore';
 import { randomBytes } from 'crypto';
+import { MAX_ZIP_SIZE_BYTES, ZIP_CLEANUP_AGE_MS } from '../constants';
 
 /**
  * Standard exclusions for security and size optimization
@@ -111,7 +112,7 @@ export async function zipRepository(
   directoryPath: string,
   options: ZipOptions = {}
 ): Promise<ZipResult> {
-  const maxSizeBytes = options.maxSizeBytes || 500 * 1024 * 1024; // 500MB default
+  const maxSizeBytes = options.maxSizeBytes || MAX_ZIP_SIZE_BYTES;
 
   // Validate directory exists
   try {
@@ -361,7 +362,7 @@ function formatBytes(bytes: number): string {
  * Clean up old ZIP files from temp directory
  * Removes ZIPs older than the specified age
  */
-export async function cleanupOldZips(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<void> {
+export async function cleanupOldZips(maxAgeMs: number = ZIP_CLEANUP_AGE_MS): Promise<void> {
   const tempDir = tmpdir();
   const now = Date.now();
 

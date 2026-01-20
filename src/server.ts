@@ -6,19 +6,19 @@ import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';
 import { Agent } from 'undici';
+import { DEFAULT_API_TIMEOUT_MS, CONNECTION_TIMEOUT_MS, ZIP_CLEANUP_AGE_MS } from './constants';
 
-// Configure HTTP timeout for API requests (default: 15 min)
+// Configure HTTP timeout for API requests (default from constants)
 // Some complex repos can take 10+ minutes to process
-const DEFAULT_TIMEOUT_MS = 900_000; // 15 minutes
 const parsedTimeout = parseInt(process.env.SUPERMODEL_TIMEOUT_MS || '', 10);
 const TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout > 0
   ? parsedTimeout
-  : DEFAULT_TIMEOUT_MS;
+  : DEFAULT_API_TIMEOUT_MS;
 
 const agent = new Agent({
   headersTimeout: TIMEOUT_MS,
   bodyTimeout: TIMEOUT_MS,
-  connectTimeout: 30_000, // 30 seconds to establish connection
+  connectTimeout: CONNECTION_TIMEOUT_MS,
 });
 
 const fetchWithTimeout: typeof fetch = (url, init) => {
@@ -117,8 +117,7 @@ Example:
 
   async start() {
     // Clean up any stale ZIP files from previous sessions
-    // (older than 24 hours)
-    await cleanupOldZips(24 * 60 * 60 * 1000);
+    await cleanupOldZips(ZIP_CLEANUP_AGE_MS);
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);

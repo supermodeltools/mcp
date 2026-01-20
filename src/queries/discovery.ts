@@ -16,8 +16,9 @@ import {
   createResponse,
   createError,
 } from './types';
+import { DEFAULT_QUERY_LIMIT } from '../constants';
 
-const DEFAULT_LIMIT = 200;
+const DEFAULT_LIMIT = DEFAULT_QUERY_LIMIT;
 
 /**
  * get_node - Return full details for a specific node ID

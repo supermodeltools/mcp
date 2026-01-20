@@ -4,6 +4,7 @@
  */
 
 import { SupermodelIR, CodeGraphNode, CodeGraphRelationship } from './graph-types';
+import { DEFAULT_MAX_GRAPHS, DEFAULT_MAX_NODES } from '../constants';
 
 // Lightweight node descriptor for query responses
 export interface NodeDescriptor {
@@ -291,8 +292,8 @@ export class GraphCache {
   private currentNodes = 0;
 
   constructor(options?: { maxGraphs?: number; maxNodes?: number }) {
-    this.maxGraphs = options?.maxGraphs || 20;
-    this.maxNodes = options?.maxNodes || 1000000;
+    this.maxGraphs = options?.maxGraphs || DEFAULT_MAX_GRAPHS;
+    this.maxNodes = options?.maxNodes || DEFAULT_MAX_NODES;
   }
 
   get(cacheKey: string): IndexedGraph | null {
