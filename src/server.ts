@@ -67,6 +67,32 @@ export class Server {
 3. Examine leaf nodes to see the structure of the broader tree.
 4. Use the graph like a map to navigate the codebase more efficiently than blind grepping.
 
+## Query Workflows
+
+### Initial Discovery
+1. **graph_status** - Check if graph is cached (fast, no API call)
+2. **summary** - Get overview (file count, languages, node/edge stats)
+3. **domain_map** - Understand high-level architecture (domains and relationships)
+
+### Finding Specific Code
+1. **search** with searchText - Find nodes by name substring (e.g., "authenticate")
+2. **list_nodes** with labels - Browse by type (e.g., labels=["Function"])
+3. **get_node** with targetId - Get full details for a specific node
+
+### Understanding Relationships
+1. **function_calls_in** - Find who calls a function (callers)
+2. **function_calls_out** - Find what a function calls (callees)
+3. **definitions_in_file** - See all functions/classes/types in a file
+4. **file_imports** - Understand module dependencies
+5. **neighborhood** with depth - Explore call graph around a node
+6. **domain_membership** - Find all components in a domain
+
+### Typical Flow
+1. Start: graph_status → summary (get cached overview)
+2. Explore: domain_map OR search (find area of interest)
+3. Navigate: get_node → function_calls_* OR definitions_in_file (understand details)
+4. Context: neighborhood OR domain_membership (see broader relationships)
+
 ## Performance Optimization
 
 For localized bugs:
