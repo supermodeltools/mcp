@@ -18,8 +18,9 @@ import {
   createResponse,
   createError,
 } from './types';
+import { DEFAULT_QUERY_LIMIT, MAX_NEIGHBORHOOD_DEPTH } from '../constants';
 
-const DEFAULT_LIMIT = 200;
+const DEFAULT_LIMIT = DEFAULT_QUERY_LIMIT;
 
 /**
  * function_calls_in - Find all callers of a function
@@ -466,7 +467,7 @@ export function neighborhood(
     return createError('NOT_FOUND', `Node with id '${params.targetId}' not found`);
   }
 
-  const depth = Math.min(params.depth || 1, 3); // Cap at 3 to prevent explosion
+  const depth = Math.min(params.depth || 1, MAX_NEIGHBORHOOD_DEPTH);
   const limit = params.limit || 100;
   // Only include relationship types we actually implement
   const relationshipTypes = params.relationshipTypes || ['calls', 'IMPORTS'];
