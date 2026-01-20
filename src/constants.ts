@@ -14,6 +14,7 @@ export const MAX_ZIP_SIZE_BYTES = 500 * 1024 * 1024; // 500MB default
 // Cache configuration
 export const DEFAULT_MAX_GRAPHS = 20; // Maximum number of graphs to cache
 export const DEFAULT_MAX_NODES = 1_000_000; // Maximum total nodes across all cached graphs
+export const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour - time-to-live for cached graphs
 
 // Query defaults
 export const DEFAULT_QUERY_LIMIT = 200; // Default result limit for queries

@@ -4,7 +4,7 @@
  */
 
 import { SupermodelIR, CodeGraphNode, CodeGraphRelationship } from './graph-types';
-import { DEFAULT_MAX_GRAPHS, DEFAULT_MAX_NODES } from '../constants';
+import { DEFAULT_MAX_GRAPHS, DEFAULT_MAX_NODES, DEFAULT_CACHE_TTL_MS } from '../constants';
 
 // Lightweight node descriptor for query responses
 export interface NodeDescriptor {
@@ -76,6 +76,7 @@ interface CacheEntry {
   graph: IndexedGraph;
   nodeCount: number;
   lastAccessed: number;
+  createdAt: number;
 }
 
 /**
@@ -289,11 +290,13 @@ export class GraphCache {
   private cache = new Map<string, CacheEntry>();
   private maxGraphs: number;
   private maxNodes: number;
+  private maxAgeMs: number;
   private currentNodes = 0;
 
-  constructor(options?: { maxGraphs?: number; maxNodes?: number }) {
+  constructor(options?: { maxGraphs?: number; maxNodes?: number; maxAgeMs?: number }) {
     this.maxGraphs = options?.maxGraphs || DEFAULT_MAX_GRAPHS;
     this.maxNodes = options?.maxNodes || DEFAULT_MAX_NODES;
+    this.maxAgeMs = options?.maxAgeMs || DEFAULT_CACHE_TTL_MS;
   }
 
   get(cacheKey: string): IndexedGraph | null {
@@ -309,6 +312,9 @@ export class GraphCache {
   set(cacheKey: string, graph: IndexedGraph): void {
     const nodeCount = graph.summary.nodeCount;
 
+    // Evict stale entries first
+    this.evictStale();
+
     // Evict if needed
     while (
       (this.cache.size >= this.maxGraphs || this.currentNodes + nodeCount > this.maxNodes) &&
@@ -318,10 +324,12 @@ export class GraphCache {
     }
 
     // Store
+    const now = Date.now();
     this.cache.set(cacheKey, {
       graph,
       nodeCount,
-      lastAccessed: Date.now(),
+      lastAccessed: now,
+      createdAt: now,
     });
     this.currentNodes += nodeCount;
   }
@@ -346,6 +354,32 @@ export class GraphCache {
       this.currentNodes -= entry.nodeCount;
       this.cache.delete(oldestKey);
     }
+  }
+
+  /**
+   * Evict all cache entries that have exceeded their TTL (maxAgeMs)
+   * This method can be called manually or is automatically invoked before adding new entries
+   * @returns Number of entries evicted
+   */
+  evictStale(): number {
+    const now = Date.now();
+    const keysToEvict: string[] = [];
+
+    // Find all stale entries
+    for (const [key, entry] of this.cache) {
+      if (now - entry.createdAt > this.maxAgeMs) {
+        keysToEvict.push(key);
+      }
+    }
+
+    // Evict them
+    for (const key of keysToEvict) {
+      const entry = this.cache.get(key)!;
+      this.currentNodes -= entry.nodeCount;
+      this.cache.delete(key);
+    }
+
+    return keysToEvict.length;
   }
 
   status(): { graphs: number; nodes: number; keys: string[] } {
