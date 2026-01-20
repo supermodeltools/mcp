@@ -5,6 +5,25 @@ import createSupermodelGraphTool from './tools/create-supermodel-graph';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';
+import { Agent } from 'undici';
+
+// Configure HTTP timeout for API requests (default: 15 min)
+// Some complex repos can take 10+ minutes to process
+const TIMEOUT_MS = parseInt(process.env.SUPERMODEL_TIMEOUT_MS || '900000', 10);
+
+const agent = new Agent({
+  headersTimeout: TIMEOUT_MS,
+  bodyTimeout: TIMEOUT_MS,
+  connectTimeout: 30_000, // 30 seconds to establish connection
+});
+
+const fetchWithTimeout: typeof fetch = (url, init) => {
+  return fetch(url, {
+    ...init,
+    // @ts-ignore - dispatcher is valid for undici-backed fetch
+    dispatcher: agent,
+  });
+};
 
 export class Server {
   private server: McpServer;
@@ -58,6 +77,7 @@ Example:
     const config = new Configuration({
       basePath: process.env.SUPERMODEL_BASE_URL || 'https://api.supermodeltools.com',
       apiKey: process.env.SUPERMODEL_API_KEY,
+      fetchApi: fetchWithTimeout,
     });
 
     console.error('[DEBUG] Server configuration:');
