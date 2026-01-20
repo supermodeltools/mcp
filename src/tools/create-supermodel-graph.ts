@@ -95,7 +95,75 @@ The graph structure shows 163 nodes (Functions, Classes, Types, Files, Domains) 
 
 The graph contains nodes with properties like filePath, startLine, endLine for functions, and relationships like CHILD_DIRECTORY, CONTAINS_FILE, calls, IMPORTS that connect code entities.
 
-Query types available: graph_status, summary, get_node, search, list_nodes, function_calls_in, function_calls_out, definitions_in_file, file_imports, domain_map, domain_membership, neighborhood, jq
+## Graph Schema Reference
+
+### Node Types (Labels)
+
+- **Function**: Functions and methods
+  - Properties: name, filePath, startLine, endLine, language, kind
+  - Used for: Tracing calls, finding implementations, analyzing dependencies
+
+- **Class**: Class definitions
+  - Properties: name, filePath, startLine, endLine, language
+  - Used for: Understanding OOP structure, finding methods
+
+- **Type**: Type definitions, interfaces, type aliases
+  - Properties: name, filePath, startLine, endLine, language, kind
+  - Used for: Type dependency analysis, interface discovery
+
+- **File**: Source code files
+  - Properties: name, path, filePath, language
+  - Used for: File-level analysis, import tracking
+
+- **Directory**: Folder nodes in the file tree
+  - Properties: name, path
+  - Used for: Navigating project structure
+
+- **Domain**: High-level architectural domains
+  - Properties: name
+  - Used for: Understanding system architecture, finding related components
+
+- **Subdomain**: Sub-components within domains
+  - Properties: name
+  - Used for: Fine-grained architectural analysis
+
+- **ExternalModule**: External dependencies (npm packages, imports)
+  - Properties: name
+  - Used for: Dependency analysis, finding external usage
+
+- **LocalModule**: Internal project modules
+  - Properties: name, filePath
+  - Used for: Internal dependency tracking
+
+### Relationship Types
+
+- **calls**: Function A calls Function B
+  - Direction: caller → callee
+  - Queries: function_calls_in, function_calls_out, neighborhood
+
+- **IMPORTS**: File/Module A imports from Module B
+  - Direction: importer → imported
+  - Queries: file_imports
+
+- **CONTAINS_FILE**: Directory contains File
+  - Direction: directory → file
+  - Queries: definitions_in_file, list_nodes
+
+- **CHILD_DIRECTORY**: Directory hierarchy
+  - Direction: parent → child
+  - Queries: list_nodes
+
+- **DEFINES**: File defines Function/Class/Type
+  - Direction: file → definition
+  - Queries: definitions_in_file
+
+- **belongsTo**: Entity belongs to Domain/Subdomain
+  - Direction: entity → domain
+  - Queries: domain_membership, domain_map
+
+### Query Types
+
+Available queries: graph_status, summary, get_node, search, list_nodes, function_calls_in, function_calls_out, definitions_in_file, file_imports, domain_map, domain_membership, neighborhood, jq
 `,
   inputSchema: {
     type: 'object',
