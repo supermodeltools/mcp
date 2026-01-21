@@ -226,6 +226,28 @@ TEMPLATES = {
         },
         tags=["custom", "nodejs", "development"],
     ),
+    "mcptoolbench-basic": Template(
+        id="mcptoolbench-basic",
+        name="MCPToolBench++ Evaluation",
+        description="Evaluate MCP tool use with MCPToolBench++ benchmark",
+        category="Benchmarking",
+        config={
+            "mcp_server": {
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", "{workdir}"],
+                "env": {},
+            },
+            "provider": "anthropic",
+            "agent_harness": "claude-code",
+            "model": DEFAULT_MODEL,
+            "benchmark": "mcptoolbench",
+            "sample_size": 10,
+            "timeout_seconds": 300,
+            "max_concurrent": 4,
+            "max_iterations": 10,
+        },
+        tags=["mcptoolbench", "benchmark", "tool-use", "evaluation"],
+    ),
 }
 
 

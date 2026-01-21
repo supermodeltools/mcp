@@ -70,12 +70,24 @@ Security vulnerabilities requiring Proof-of-Concept (PoC) exploits. The agent ge
 - **Difficulty levels**: 0-3 (controls context given to agent)
 - **Learn more**: [CyberGym Project](https://cybergym.cs.berkeley.edu/)
 
+### MCPToolBench++
+Large-scale MCP tool use evaluation across 45+ categories. Tests agent capabilities in tool discovery, selection, invocation, and result interpretation.
+
+- **Dataset**: [MCPToolBench/MCPToolBenchPP](https://huggingface.co/datasets/MCPToolBench/MCPToolBenchPP)
+- **Task**: Complete tasks using appropriate MCP tools
+- **Evaluation**: Tool selection accuracy, parameter correctness, sequence matching
+- **Categories**: Browser, Finance, Code Analysis, and 40+ more
+- **Learn more**: [MCPToolBench++ Paper](https://arxiv.org/pdf/2508.07575) | [GitHub](https://github.com/mcp-tool-bench/MCPToolBenchPP)
+
 ```bash
 # Run SWE-bench (default)
 mcpbr run -c config.yaml
 
 # Run CyberGym at level 2
 mcpbr run -c config.yaml --benchmark cybergym --level 2
+
+# Run MCPToolBench++
+mcpbr run -c config.yaml --benchmark mcptoolbench
 
 # List available benchmarks
 mcpbr benchmarks
@@ -315,7 +327,7 @@ Use `{problem_statement}` as a placeholder for the SWE-bench issue text. You can
 |-----------|---------|-------------|
 | `provider` | `anthropic` | LLM provider |
 | `agent_harness` | `claude-code` | Agent backend |
-| `benchmark` | `swe-bench` | Benchmark to run (`swe-bench` or `cybergym`) |
+| `benchmark` | `swe-bench` | Benchmark to run (`swe-bench`, `cybergym`, or `mcptoolbench`) |
 | `agent_prompt` | `null` | Custom prompt template (use `{problem_statement}` placeholder) |
 | `model` | `sonnet` | Model alias or full ID |
 | `dataset` | `null` | HuggingFace dataset (optional, benchmark provides default) |
@@ -346,7 +358,7 @@ mcpbr init --help
 | `mcpbr models` | List supported models for evaluation |
 | `mcpbr providers` | List available model providers |
 | `mcpbr harnesses` | List available agent harnesses |
-| `mcpbr benchmarks` | List available benchmarks (SWE-bench, CyberGym) |
+| `mcpbr benchmarks` | List available benchmarks (SWE-bench, CyberGym, MCPToolBench++) |
 | `mcpbr cleanup` | Remove orphaned mcpbr Docker containers |
 
 ### `mcpbr run`
@@ -360,7 +372,7 @@ Run SWE-bench evaluation with the configured MCP server.
 |--------|-------|-------------|
 | `--config PATH` | `-c` | Path to YAML configuration file (required) |
 | `--model TEXT` | `-m` | Override model from config |
-| `--benchmark TEXT` | `-b` | Override benchmark from config (`swe-bench` or `cybergym`) |
+| `--benchmark TEXT` | `-b` | Override benchmark from config (`swe-bench`, `cybergym`, or `mcptoolbench`) |
 | `--level INTEGER` | | Override CyberGym difficulty level (0-3) |
 | `--sample INTEGER` | `-n` | Override sample size from config |
 | `--mcp-only` | `-M` | Run only MCP evaluation (skip baseline) |
@@ -776,11 +788,11 @@ The JUnit XML format enables native test result visualization in your CI/CD dash
 
 > **[Architecture deep dive](https://greynewell.github.io/mcpbr/architecture/)** - learn how mcpbr works internally.
 
-1. **Load Tasks**: Fetches tasks from the selected benchmark (SWE-bench or CyberGym) via HuggingFace
+1. **Load Tasks**: Fetches tasks from the selected benchmark (SWE-bench, CyberGym, or MCPToolBench++) via HuggingFace
 2. **Create Environment**: For each task, creates an isolated Docker environment with the repository and dependencies
 3. **Run MCP Agent**: Invokes Claude Code CLI **inside the Docker container**, letting it explore and generate a solution (patch or PoC)
 4. **Run Baseline**: Same as MCP agent but without the MCP server
-5. **Evaluate**: Runs benchmark-specific evaluation (test suites for SWE-bench, crash detection for CyberGym)
+5. **Evaluate**: Runs benchmark-specific evaluation (test suites for SWE-bench, crash detection for CyberGym, tool use accuracy for MCPToolBench++)
 6. **Report**: Aggregates results and calculates improvement
 
 ### Pre-built Docker Images
@@ -809,10 +821,11 @@ mcpbr/
 │   ├── providers.py     # LLM provider abstractions (extensible)
 │   ├── harnesses.py     # Agent harness implementations (extensible)
 │   ├── benchmarks/      # Benchmark abstraction layer
-│   │   ├── __init__.py  # Registry and factory
-│   │   ├── base.py      # Benchmark protocol
-│   │   ├── swebench.py  # SWE-bench implementation
-│   │   └── cybergym.py  # CyberGym implementation
+│   │   ├── __init__.py      # Registry and factory
+│   │   ├── base.py          # Benchmark protocol
+│   │   ├── swebench.py      # SWE-bench implementation
+│   │   ├── cybergym.py      # CyberGym implementation
+│   │   └── mcptoolbench.py  # MCPToolBench++ implementation
 │   ├── harness.py       # Main orchestrator
 │   ├── agent.py         # Baseline agent implementation
 │   ├── docker_env.py    # Docker environment management + in-container execution

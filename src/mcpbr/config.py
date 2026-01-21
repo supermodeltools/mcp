@@ -12,7 +12,7 @@ from .models import DEFAULT_MODEL
 
 VALID_PROVIDERS = ("anthropic",)
 VALID_HARNESSES = ("claude-code",)
-VALID_BENCHMARKS = ("swe-bench", "cybergym")
+VALID_BENCHMARKS = ("swe-bench", "cybergym", "mcptoolbench")
 
 
 class MCPServerConfig(BaseModel):
@@ -83,7 +83,7 @@ class HarnessConfig(BaseModel):
 
     benchmark: str = Field(
         default="swe-bench",
-        description="Benchmark to run (swe-bench or cybergym)",
+        description="Benchmark to run (swe-bench, cybergym, or mcptoolbench)",
     )
 
     dataset: str | None = Field(

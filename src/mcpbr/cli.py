@@ -118,7 +118,7 @@ def main() -> None:
     "benchmark_override",
     type=click.Choice(VALID_BENCHMARKS),
     default=None,
-    help="Override benchmark from config (swe-bench or cybergym)",
+    help="Override benchmark from config (swe-bench, cybergym, or mcptoolbench)",
 )
 @click.option(
     "--level",
@@ -844,10 +844,17 @@ def benchmarks() -> None:
         "Security vulnerability exploitation (PoC generation)",
         "Exploit code",
     )
+    table.add_row(
+        "mcptoolbench",
+        "MCP tool use evaluation (tool discovery, selection, invocation)",
+        "Tool call sequence",
+    )
 
     console.print(table)
     console.print("\n[dim]Use --benchmark flag with 'run' command to select a benchmark[/dim]")
-    console.print("[dim]Example: mcpbr run -c config.yaml --benchmark cybergym --level 2[/dim]")
+    console.print("[dim]Examples:[/dim]")
+    console.print("[dim]  mcpbr run -c config.yaml --benchmark cybergym --level 2[/dim]")
+    console.print("[dim]  mcpbr run -c config.yaml --benchmark mcptoolbench[/dim]")
 
 
 @main.group(context_settings={"help_option_names": ["-h", "--help"]})

@@ -5,6 +5,7 @@ import pytest
 from mcpbr.benchmarks import (
     Benchmark,
     CyberGymBenchmark,
+    MCPToolBenchmark,
     SWEBenchmark,
     create_benchmark,
     list_benchmarks,
@@ -19,7 +20,8 @@ class TestBenchmarkRegistry:
         benchmarks = list_benchmarks()
         assert "swe-bench" in benchmarks
         assert "cybergym" in benchmarks
-        assert len(benchmarks) >= 2
+        assert "mcptoolbench" in benchmarks
+        assert len(benchmarks) >= 3
 
     def test_create_swebench(self) -> None:
         """Test creating SWE-bench benchmark."""
@@ -42,6 +44,17 @@ class TestBenchmarkRegistry:
         """Test creating CyberGym with difficulty level."""
         benchmark = create_benchmark("cybergym", level=2)
         assert benchmark.level == 2
+
+    def test_create_mcptoolbench(self) -> None:
+        """Test creating MCPToolBench++ benchmark."""
+        benchmark = create_benchmark("mcptoolbench")
+        assert isinstance(benchmark, MCPToolBenchmark)
+        assert benchmark.name == "mcptoolbench"
+
+    def test_create_mcptoolbench_with_custom_dataset(self) -> None:
+        """Test creating MCPToolBench++ with custom dataset."""
+        benchmark = create_benchmark("mcptoolbench", dataset="custom/dataset")
+        assert benchmark.dataset == "custom/dataset"
 
     def test_create_unknown_benchmark(self) -> None:
         """Test creating unknown benchmark raises error."""
@@ -187,6 +200,116 @@ class TestCyberGymBenchmark:
         assert "exploit" in prompt.lower() or "vulnerability" in prompt.lower()
 
 
+class TestMCPToolBenchmark:
+    """Tests for MCPToolBench++ benchmark implementation."""
+
+    def test_initialization(self) -> None:
+        """Test MCPToolBench++ initialization."""
+        benchmark = MCPToolBenchmark()
+        assert benchmark.name == "mcptoolbench"
+        assert benchmark.dataset == "MCPToolBench/MCPToolBenchPP"
+
+    def test_custom_dataset(self) -> None:
+        """Test MCPToolBench++ with custom dataset."""
+        benchmark = MCPToolBenchmark(dataset="custom/dataset")
+        assert benchmark.dataset == "custom/dataset"
+
+    def test_normalize_task(self) -> None:
+        """Test normalizing MCPToolBench++ task."""
+        benchmark = MCPToolBenchmark()
+        task = {
+            "uuid": "test-uuid-123",
+            "category": "browser",
+            "call_type": "single",
+            "query": "Navigate to example.com and click the submit button",
+            "tools": ["navigate", "click"],
+            "mcp_tools_dict": {"navigate": {}, "click": {}},
+            "function_call_label": [{"name": "navigate", "parameters": {"url": "example.com"}}],
+        }
+
+        normalized = benchmark.normalize_task(task)
+        assert normalized.task_id == "test-uuid-123"
+        assert "Navigate to example.com" in normalized.problem_statement
+        assert "mcptoolbench/browser" in normalized.repo
+        assert normalized.commit == "HEAD"
+        assert normalized.metadata["category"] == "browser"
+        assert normalized.metadata["call_type"] == "single"
+
+    def test_generate_problem_statement(self) -> None:
+        """Test problem statement generation."""
+        benchmark = MCPToolBenchmark()
+        task = {
+            "uuid": "test-123",
+            "category": "finance",
+            "call_type": "multi",
+            "query": "Calculate portfolio returns",
+            "tools": ["get_portfolio", "calculate_returns"],
+        }
+
+        statement = benchmark._generate_problem_statement(task)
+        assert "finance" in statement
+        assert "multi-step" in statement
+        assert "Calculate portfolio returns" in statement
+        assert "get_portfolio" in statement
+        assert "calculate_returns" in statement
+
+    def test_get_prebuilt_image(self) -> None:
+        """Test getting pre-built image (should be None for MCPToolBench++)."""
+        benchmark = MCPToolBenchmark()
+        task = {"uuid": "test", "category": "browser"}
+        image = benchmark.get_prebuilt_image(task)
+        assert image is None
+
+    def test_get_prompt_template(self) -> None:
+        """Test getting prompt template."""
+        benchmark = MCPToolBenchmark()
+        prompt = benchmark.get_prompt_template()
+        assert "{problem_statement}" in prompt
+        assert "MCP" in prompt
+        assert "tool" in prompt.lower()
+
+    def test_extract_tool_calls_from_json(self) -> None:
+        """Test extracting tool calls from JSON solution."""
+        benchmark = MCPToolBenchmark()
+        solution = '[{"name": "navigate", "parameters": {"url": "test.com"}}]'
+        calls = benchmark._extract_tool_calls(solution)
+        assert len(calls) == 1
+        assert calls[0]["name"] == "navigate"
+
+    def test_evaluate_tool_calls_exact_match(self) -> None:
+        """Test evaluating tool calls with exact match."""
+        benchmark = MCPToolBenchmark()
+        agent_calls = [{"name": "navigate", "parameters": {"url": "test.com"}}]
+        ground_truth = [{"name": "navigate", "parameters": {"url": "test.com"}}]
+
+        result = benchmark._evaluate_tool_calls(agent_calls, ground_truth)
+        assert result["correct"] is True
+        assert result["tool_selection_accuracy"] == 1.0
+        assert result["parameter_accuracy"] == 1.0
+        assert result["sequence_match"] is True
+
+    def test_evaluate_tool_calls_wrong_tool(self) -> None:
+        """Test evaluating tool calls with wrong tool selected."""
+        benchmark = MCPToolBenchmark()
+        agent_calls = [{"name": "click", "parameters": {"selector": "button"}}]
+        ground_truth = [{"name": "navigate", "parameters": {"url": "test.com"}}]
+
+        result = benchmark._evaluate_tool_calls(agent_calls, ground_truth)
+        assert result["correct"] is False
+        assert result["tool_selection_accuracy"] == 0.0
+
+    def test_evaluate_tool_calls_no_calls(self) -> None:
+        """Test evaluating when agent makes no tool calls."""
+        benchmark = MCPToolBenchmark()
+        agent_calls = []
+        ground_truth = [{"name": "navigate", "parameters": {"url": "test.com"}}]
+
+        result = benchmark._evaluate_tool_calls(agent_calls, ground_truth)
+        assert result["correct"] is False
+        assert result["tool_selection_accuracy"] == 0.0
+        assert "no tool calls" in result["details"].lower()
+
+
 class TestBenchmarkProtocol:
     """Tests for benchmark protocol compliance."""
 
@@ -204,6 +327,17 @@ class TestBenchmarkProtocol:
     def test_cybergym_implements_protocol(self) -> None:
         """Test that CyberGymBenchmark implements Benchmark protocol."""
         benchmark = CyberGymBenchmark()
+        assert isinstance(benchmark, Benchmark)
+        assert hasattr(benchmark, "load_tasks")
+        assert hasattr(benchmark, "normalize_task")
+        assert hasattr(benchmark, "create_environment")
+        assert hasattr(benchmark, "evaluate")
+        assert hasattr(benchmark, "get_prebuilt_image")
+        assert hasattr(benchmark, "get_prompt_template")
+
+    def test_mcptoolbench_implements_protocol(self) -> None:
+        """Test that MCPToolBenchmark implements Benchmark protocol."""
+        benchmark = MCPToolBenchmark()
         assert isinstance(benchmark, Benchmark)
         assert hasattr(benchmark, "load_tasks")
         assert hasattr(benchmark, "normalize_task")
