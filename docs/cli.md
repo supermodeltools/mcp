@@ -1,7 +1,7 @@
 ---
 faq:
   - q: "What commands are available in mcpbr?"
-    a: "mcpbr provides six commands: run (execute evaluations), init (generate config), models (list supported models), providers (list LLM providers), harnesses (list agent backends), and cleanup (remove orphaned Docker containers)."
+    a: "mcpbr provides six commands: run (execute evaluations), init (generate config), models (list supported models), providers (list LLM providers), harnesses (list agent backends), benchmarks (list available benchmarks), and cleanup (remove orphaned Docker resources including containers, volumes, and networks)."
   - q: "How do I run only the MCP agent without the baseline?"
     a: "Use the --mcp-only or -M flag: 'mcpbr run -c config.yaml -M'. This skips the baseline evaluation and only runs the MCP-enabled agent."
   - q: "How do I run a specific SWE-bench task?"
@@ -33,7 +33,7 @@ mcpbr init --help
 | `mcpbr providers` | List available model providers |
 | `mcpbr harnesses` | List available agent harnesses |
 | `mcpbr benchmarks` | List available benchmarks (SWE-bench, CyberGym) |
-| `mcpbr cleanup` | Remove orphaned mcpbr Docker containers |
+| `mcpbr cleanup` | Remove orphaned mcpbr Docker resources (containers, volumes, networks) |
 
 ---
 
@@ -362,7 +362,9 @@ See the [Benchmarks guide](benchmarks.md) for detailed information about each be
 
 ## `mcpbr cleanup`
 
-Remove orphaned mcpbr Docker containers that were not properly cleaned up.
+Remove orphaned mcpbr Docker resources (containers, volumes, networks) that were not properly cleaned up.
+
+This command helps prevent resource leaks when evaluations fail or are interrupted. By default, it only removes resources older than 24 hours to avoid removing resources from currently running evaluations.
 
 ### Usage
 
@@ -372,23 +374,96 @@ mcpbr cleanup [OPTIONS]
 
 ### Options
 
-| Option | Short | Type | Description |
-|--------|-------|------|-------------|
-| `--dry-run` | | Flag | Show containers that would be removed without removing them |
-| `--force` | `-f` | Flag | Skip confirmation prompt |
-| `--help` | `-h` | Flag | Show help message |
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--dry-run` | | Flag | False | Show resources that would be removed without removing them |
+| `--force` | `-f` | Flag | False | Force removal without confirmation and ignore retention policy |
+| `--retention-hours N` | | Integer | 24 | Only remove resources older than N hours |
+| `--containers-only` | | Flag | False | Only clean up containers (skip volumes and networks) |
+| `--volumes-only` | | Flag | False | Only clean up volumes (skip containers and networks) |
+| `--networks-only` | | Flag | False | Only clean up networks (skip containers and volumes) |
+| `--help` | `-h` | Flag | | Show help message |
+
+### Behavior
+
+- **Default**: Removes resources older than 24 hours with confirmation prompt
+- **--force**: Removes all resources immediately without confirmation
+- **--retention-hours**: Customize the age threshold for automatic cleanup
+- **--dry-run**: Shows what would be removed without making changes
+- **Resource types**: Cleans containers, volumes, and networks by default
 
 ### Examples
 
 ```bash
-# Preview containers to remove
+# Preview all resources that would be removed (24h+ old)
 mcpbr cleanup --dry-run
 
-# Remove with confirmation prompt
+# Remove resources with confirmation prompt
 mcpbr cleanup
 
-# Remove without confirmation
+# Force remove all resources immediately
 mcpbr cleanup -f
+
+# Only remove resources older than 48 hours
+mcpbr cleanup --retention-hours 48
+
+# Remove only containers
+mcpbr cleanup --containers-only
+
+# Remove only volumes (useful after many failed runs)
+mcpbr cleanup --volumes-only
+
+# Preview with custom retention period
+mcpbr cleanup --dry-run --retention-hours 12
+```
+
+### Resource Tracking
+
+mcpbr tracks Docker resources using labels:
+
+- `mcpbr=true` - Identifies resources created by mcpbr
+- `mcpbr.instance` - Links to specific benchmark task
+- `mcpbr.session` - Groups resources from same evaluation run
+- `mcpbr.timestamp` - Creation time for retention policy
+
+### When to Use Cleanup
+
+Run cleanup when you:
+
+- Have crashed or interrupted evaluations
+- See "container already exists" errors
+- Want to free up disk space
+- Are switching between different evaluation configurations
+- Need to ensure a clean slate before running new evaluations
+
+### Safety Features
+
+- **Retention policy**: Prevents accidental removal of running evaluations
+- **Confirmation prompt**: Asks before removing resources (unless --force)
+- **Dry run**: Preview mode to verify what will be removed
+- **Selective cleanup**: Target specific resource types
+- **Error reporting**: Shows which resources failed to clean up
+
+### Output Example
+
+```text
+Found orphaned mcpbr resources:
+
+  Containers (3):
+    - mcpbr-abc123-astropy__astropy-12907
+    - mcpbr-def456-django__django-11099
+    - mcpbr-ghi789-sympy__sympy-18199
+
+  Volumes (2):
+    - mcpbr-volume-abc123
+    - mcpbr-volume-def456
+
+  Networks (1):
+    - mcpbr-network-abc123
+
+Total: 6 resource(s)
+
+Remove these resources? [Y/n]:
 ```
 
 ---

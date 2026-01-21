@@ -10,7 +10,7 @@ from rich.table import Table
 
 from .config import VALID_BENCHMARKS, VALID_HARNESSES, VALID_PROVIDERS, load_config
 from .config_validator import validate_config
-from .docker_env import cleanup_orphaned_containers, register_signal_handlers
+from .docker_env import cleanup_all_resources, register_signal_handlers
 from .harness import run_evaluation
 from .harnesses import list_available_harnesses
 from .junit_reporter import save_junit_xml
@@ -872,25 +872,59 @@ def config() -> None:
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="Show containers that would be removed without removing them",
+    help="Show resources that would be removed without removing them",
 )
 @click.option(
     "--force",
     "-f",
     is_flag=True,
-    help="Skip confirmation prompt",
+    help="Force removal of all resources regardless of age",
 )
-def cleanup(dry_run: bool, force: bool) -> None:
-    """Remove orphaned mcpbr Docker containers.
+@click.option(
+    "--retention-hours",
+    type=int,
+    default=None,
+    help="Only remove resources older than this many hours (default: 24)",
+)
+@click.option(
+    "--containers-only",
+    is_flag=True,
+    help="Only remove containers",
+)
+@click.option(
+    "--volumes-only",
+    is_flag=True,
+    help="Only remove volumes",
+)
+@click.option(
+    "--networks-only",
+    is_flag=True,
+    help="Only remove networks",
+)
+def cleanup(
+    dry_run: bool,
+    force: bool,
+    retention_hours: int | None,
+    containers_only: bool,
+    volumes_only: bool,
+    networks_only: bool,
+) -> None:
+    """Remove orphaned mcpbr Docker resources.
 
-    Finds and removes any Docker containers created by mcpbr that were
-    not properly cleaned up (e.g., due to crashes or interruptions).
+    Finds and removes Docker containers, volumes, and networks created by mcpbr
+    that were not properly cleaned up (e.g., due to crashes or interruptions).
+
+    By default, only removes resources older than 24 hours. Use --force to
+    remove all resources immediately.
 
     \b
     Examples:
-      mcpbr cleanup --dry-run  # Preview what would be removed
-      mcpbr cleanup            # Remove with confirmation
-      mcpbr cleanup -f         # Remove without confirmation
+      mcpbr cleanup --dry-run              # Preview what would be removed
+      mcpbr cleanup                        # Remove with confirmation
+      mcpbr cleanup -f                     # Force remove without confirmation
+      mcpbr cleanup --retention-hours 48   # Only remove resources older than 48h
+      mcpbr cleanup --containers-only      # Only remove containers
+      mcpbr cleanup --volumes-only         # Only remove volumes
     """
     try:
         from docker.errors import DockerException
@@ -898,34 +932,97 @@ def cleanup(dry_run: bool, force: bool) -> None:
         console.print("[red]Error: docker package not available[/red]")
         sys.exit(1)
 
+    # Validate mutually exclusive flags
+    exclusive_flags = [containers_only, volumes_only, networks_only]
+    if sum(exclusive_flags) > 1:
+        console.print("[red]Error: Cannot specify multiple --*-only flags[/red]")
+        sys.exit(1)
+
     try:
-        containers = cleanup_orphaned_containers(dry_run=True)
+        # Get preview of what would be removed
+        preview_report = cleanup_all_resources(
+            dry_run=True, force=force, retention_hours=retention_hours
+        )
+
+        # Filter based on --*-only flags
+        if containers_only:
+            preview_report.volumes_removed = []
+            preview_report.networks_removed = []
+        elif volumes_only:
+            preview_report.containers_removed = []
+            preview_report.networks_removed = []
+        elif networks_only:
+            preview_report.containers_removed = []
+            preview_report.volumes_removed = []
     except DockerException as e:
         console.print(f"[red]Error connecting to Docker: {e}[/red]")
         console.print("[dim]Make sure Docker is running.[/dim]")
         sys.exit(1)
 
-    if not containers:
-        console.print("[green]No orphaned mcpbr containers found.[/green]")
+    if preview_report.total_removed == 0:
+        console.print("[green]No orphaned mcpbr resources found.[/green]")
+        if not force and retention_hours is None:
+            console.print("[dim]Use --force to remove all resources regardless of age.[/dim]")
         return
 
-    console.print(f"[bold]Found {len(containers)} mcpbr container(s):[/bold]\n")
-    for name in containers:
-        console.print(f"  [cyan]{name}[/cyan]")
-    console.print()
+    console.print("[bold]Found orphaned mcpbr resources:[/bold]\n")
+
+    if preview_report.containers_removed:
+        console.print(f"  [cyan]Containers ({len(preview_report.containers_removed)}):[/cyan]")
+        for name in preview_report.containers_removed[:10]:
+            console.print(f"    - {name}")
+        if len(preview_report.containers_removed) > 10:
+            console.print(f"    ... and {len(preview_report.containers_removed) - 10} more")
+        console.print()
+
+    if preview_report.volumes_removed:
+        console.print(f"  [cyan]Volumes ({len(preview_report.volumes_removed)}):[/cyan]")
+        for name in preview_report.volumes_removed[:10]:
+            console.print(f"    - {name}")
+        if len(preview_report.volumes_removed) > 10:
+            console.print(f"    ... and {len(preview_report.volumes_removed) - 10} more")
+        console.print()
+
+    if preview_report.networks_removed:
+        console.print(f"  [cyan]Networks ({len(preview_report.networks_removed)}):[/cyan]")
+        for name in preview_report.networks_removed[:10]:
+            console.print(f"    - {name}")
+        if len(preview_report.networks_removed) > 10:
+            console.print(f"    ... and {len(preview_report.networks_removed) - 10} more")
+        console.print()
 
     if dry_run:
-        console.print("[yellow]Dry run - no containers were removed.[/yellow]")
+        console.print("[yellow]Dry run - no resources were removed.[/yellow]")
         return
 
     if not force:
-        confirm = click.confirm("Remove these containers?", default=True)
+        confirm = click.confirm("Remove these resources?", default=True)
         if not confirm:
             console.print("[yellow]Aborted.[/yellow]")
             return
 
-    removed = cleanup_orphaned_containers(dry_run=False)
-    console.print(f"[green]Removed {len(removed)} container(s).[/green]")
+    # Perform actual cleanup
+    report = cleanup_all_resources(dry_run=False, force=force, retention_hours=retention_hours)
+
+    # Filter based on --*-only flags
+    if containers_only:
+        report.volumes_removed = []
+        report.networks_removed = []
+    elif volumes_only:
+        report.containers_removed = []
+        report.networks_removed = []
+    elif networks_only:
+        report.containers_removed = []
+        report.volumes_removed = []
+
+    console.print(f"[green]Removed {report.total_removed} resource(s).[/green]")
+
+    if report.errors:
+        console.print(f"\n[yellow]Encountered {len(report.errors)} error(s):[/yellow]")
+        for error in report.errors[:5]:
+            console.print(f"  - {error}")
+        if len(report.errors) > 5:
+            console.print(f"  ... and {len(report.errors) - 5} more")
 
 
 @config.command(context_settings={"help_option_names": ["-h", "--help"]})
