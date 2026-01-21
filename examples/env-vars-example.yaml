@@ -1,0 +1,44 @@
+# Example configuration using environment variables
+# This demonstrates how to use environment variables for sensitive data
+#
+# Syntax:
+# - ${VAR}            : Required variable, error if not set
+# - ${VAR:-default}   : Optional variable with default value
+#
+# Usage:
+# 1. Set environment variables:
+#    export ANTHROPIC_API_KEY="your-key-here"
+#    export SERVER_TYPE="filesystem"
+#
+# 2. Or create a .env file in the current directory:
+#    ANTHROPIC_API_KEY=your-key-here
+#    SERVER_TYPE=filesystem
+#
+# 3. Run mcpbr:
+#    mcpbr run -c examples/env-vars-example.yaml
+
+mcp_server:
+  name: "${SERVER_NAME:-mcpbr}"
+  command: npx
+  args:
+    - "-y"
+    - "@modelcontextprotocol/server-${SERVER_TYPE:-filesystem}"
+    - "{workdir}"
+  env:
+    # Required: API key from environment
+    API_KEY: "${ANTHROPIC_API_KEY}"
+
+    # Optional: Custom setting with default
+    LOG_LEVEL: "${LOG_LEVEL:-info}"
+
+    # Optional: Database connection (if using database server)
+    # DATABASE_URL: "${DATABASE_URL:-sqlite:///local.db}"
+
+provider: anthropic
+agent_harness: claude-code
+model: "${MODEL:-sonnet}"
+benchmark: swe-bench
+dataset: SWE-bench/SWE-bench_Lite
+sample_size: "${SAMPLE_SIZE:-1}"
+timeout_seconds: "${TIMEOUT:-300}"
+max_concurrent: "${MAX_CONCURRENT:-4}"

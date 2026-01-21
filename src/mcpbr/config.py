@@ -7,7 +7,9 @@ from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
+from rich.console import Console
 
+from .env_expansion import expand_env_vars, load_dotenv_file, validate_config_security
 from .models import DEFAULT_MODEL
 
 VALID_PROVIDERS = ("anthropic",)
@@ -190,27 +192,59 @@ class HarnessConfig(BaseModel):
         return v
 
 
-def load_config(config_path: str | Path) -> HarnessConfig:
-    """Load configuration from a YAML file.
+def load_config(config_path: str | Path, warn_security: bool = True) -> HarnessConfig:
+    """Load configuration from a YAML file with environment variable expansion.
+
+    Automatically loads .env file from current directory if it exists.
+    Supports ${VAR} and ${VAR:-default} syntax for environment variables.
 
     Args:
         config_path: Path to the YAML configuration file.
+        warn_security: Whether to print security warnings for hardcoded secrets.
 
     Returns:
         Validated HarnessConfig instance.
 
     Raises:
         FileNotFoundError: If config file doesn't exist.
-        ValueError: If config is invalid.
+        ValueError: If config is invalid or required environment variables are missing.
     """
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
 
+    # Load .env file if it exists in the current directory
+    load_dotenv_file()
+
+    # Load raw YAML
     with open(path) as f:
         raw_config: dict[str, Any] = yaml.safe_load(f)
 
-    return HarnessConfig(**raw_config)
+    # Check for security issues before expansion
+    if warn_security:
+        security_warnings = validate_config_security(raw_config)
+        if security_warnings:
+            console = Console(stderr=True)
+            console.print("[yellow]⚠ Security warnings:[/yellow]")
+            for warning in security_warnings:
+                console.print(f"  [yellow]• {warning}[/yellow]")
+            console.print()
+
+    # Expand environment variables
+    required_vars: set[str] = set()
+    try:
+        expanded_config = expand_env_vars(raw_config, required_vars)
+    except ValueError as e:
+        # Provide helpful error message for missing required variables
+        raise ValueError(
+            f"Configuration error: {e}\n\n"
+            f"You can either:\n"
+            f"1. Set the environment variable before running mcpbr\n"
+            f"2. Add it to a .env file in the current directory\n"
+            f"3. Provide a default value in the config: ${{{{VAR:-default}}}}"
+        ) from e
+
+    return HarnessConfig(**expanded_config)
 
 
 def create_default_config() -> HarnessConfig:

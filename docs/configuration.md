@@ -134,15 +134,75 @@ The `{workdir}` placeholder is replaced at runtime with the path to the task rep
 
 #### Environment Variables
 
-Reference environment variables using `${VAR_NAME}` syntax:
+mcpbr supports environment variable substitution throughout your configuration file for secure credential management and flexible deployments.
+
+**Basic Syntax:**
 
 ```yaml
 mcp_server:
   command: "npx"
   args: ["-y", "@supermodeltools/mcp-server"]
   env:
+    # Required variable - error if not set
     SUPERMODEL_API_KEY: "${SUPERMODEL_API_KEY}"
+
+    # Optional variable with default value
+    LOG_LEVEL: "${LOG_LEVEL:-info}"
+
+    # Works in any string field
+    DATABASE_URL: "${DB_URL}"
 ```
+
+**Using .env Files:**
+
+mcpbr automatically loads environment variables from a `.env` file in the current directory:
+
+```bash
+# .env file
+ANTHROPIC_API_KEY=sk-ant-...
+SUPERMODEL_API_KEY=sm-...
+LOG_LEVEL=debug
+```
+
+Then in your config:
+
+```yaml
+mcp_server:
+  env:
+    API_KEY: "${ANTHROPIC_API_KEY}"  # Loaded from .env
+```
+
+**Variable Precedence:**
+
+1. Shell environment variables (highest priority)
+2. .env file
+3. Default values in config (`${VAR:-default}`)
+
+**Security Warnings:**
+
+mcpbr will warn you if it detects hardcoded secrets:
+
+```yaml
+# ⚠️ Warning: hardcoded API key detected
+mcp_server:
+  env:
+    API_KEY: "sk-ant-hardcoded-key"  # Bad!
+
+# ✅ Good: using environment variable
+mcp_server:
+  env:
+    API_KEY: "${ANTHROPIC_API_KEY}"  # Good!
+```
+
+**Advanced Features:**
+
+- **Multiple substitutions**: `"prefix_${VAR1}_middle_${VAR2}_suffix"`
+- **Nested structures**: Works in dicts, lists, and nested configs
+- **Non-string values**: Numbers and booleans pass through unchanged
+- **Model selection**: `model: "${MODEL:-sonnet}"`
+- **Sample size**: `sample_size: ${SAMPLE_SIZE:-10}`
+
+See [`examples/env-vars-example.yaml`](https://github.com/greynewell/mcpbr/tree/main/examples/env-vars-example.yaml) for a complete example.
 
 ### Provider and Harness
 
