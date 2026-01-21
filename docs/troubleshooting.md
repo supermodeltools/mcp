@@ -10,8 +10,8 @@ faq:
     a: "Test your MCP server independently first (e.g., 'npx -y @modelcontextprotocol/server-filesystem /tmp/test'). Check that all required environment variables are set and the command is in your PATH."
   - q: "mcpbr timed out on a task - what should I do?"
     a: "Increase timeout_seconds in your config (e.g., 600 for 10 minutes). Complex tasks may need more time, especially on emulated Docker."
-  - q: "How do I clean up orphaned Docker containers?"
-    a: "Run 'mcpbr cleanup' to find and remove orphaned containers. Use '--dry-run' first to preview what would be removed."
+  - q: "How do I clean up orphaned Docker resources?"
+    a: "Run 'mcpbr cleanup' to find and remove orphaned containers, volumes, and networks. Use '--dry-run' first to preview what would be removed. By default, it only removes resources older than 24 hours."
   - q: "Pre-built Docker image not found - is this a problem?"
     a: "mcpbr will fall back to building from scratch, which is less reliable. You can manually pull images with 'docker pull ghcr.io/epoch-research/swe-bench.eval.x86_64.INSTANCE_ID'."
   - q: "API key is not working - how do I check?"
@@ -65,19 +65,38 @@ Or disable pre-built images to always build from scratch:
 mcpbr run -c config.yaml --no-prebuilt
 ```
 
-### Orphaned Containers
+### Orphaned Docker Resources
 
-**Symptom**: Old mcpbr containers consuming resources
+**Symptom**: Old mcpbr containers, volumes, or networks consuming resources or causing "already exists" errors
 
 **Solution**:
 
 ```bash
-# Preview what would be removed
+# Preview what would be removed (resources older than 24 hours)
 mcpbr cleanup --dry-run
 
-# Remove orphaned containers
+# Remove orphaned resources with confirmation
 mcpbr cleanup
+
+# Force remove all resources immediately
+mcpbr cleanup -f
+
+# Remove only specific resource types
+mcpbr cleanup --containers-only
+mcpbr cleanup --volumes-only
+mcpbr cleanup --networks-only
+
+# Customize retention period (e.g., 48 hours)
+mcpbr cleanup --retention-hours 48
 ```
+
+**When to use**: After crashes, interruptions, or when switching evaluation configurations
+
+**Safety features**:
+- Default 24-hour retention policy prevents removing active evaluations
+- Confirmation prompt before removal (use -f to skip)
+- Dry-run mode to preview changes
+- Detailed reporting of removed resources
 
 ## Performance Issues
 
