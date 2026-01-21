@@ -8,6 +8,8 @@ faq:
     a: "mcpbr supports console output with summary tables, JSON output (--output flag), YAML output (--output-yaml flag) with full structured data, Markdown reports (--report flag), and per-instance JSON logs (--log-dir flag)."
   - q: "How do I analyze mcpbr results?"
     a: "Use the JSON output for programmatic analysis. Key fields include summary.mcp.rate, summary.baseline.rate, and per-task results with patch_generated, resolved, tokens, iterations, and tool_usage data."
+  - q: "What is tool coverage and why is it useful?"
+    a: "Tool coverage shows which MCP tools are actually being used vs. available. It helps identify underutilized tools, understand tool discoverability, and optimize your MCP server by focusing on the most valuable tools for solving tasks."
 ---
 
 # Understanding Evaluation Results
@@ -64,6 +66,30 @@ Evaluation Results
 +-----------------+-----------+----------+
 
 Improvement: +60.0%
+
+Tool Coverage Analysis
+
+            MCP Tool Usage
++------------------+---------+
+| Metric           | Value   |
++------------------+---------+
+| Available Tools  | 15      |
+| Used Tools       | 8       |
+| Coverage Rate    | 53.3%   |
++------------------+---------+
+
+Most Used Tools:
+  Bash: 127
+  Read: 98
+  Grep: 45
+  Write: 23
+  Edit: 12
+
+Unused Tools (7):
+  WebFetch
+  NotebookEdit
+  Skill
+  ... and 4 more
 
 Per-Task Results
 +------------------------+------+----------+-------+
@@ -123,7 +149,37 @@ mcpbr run -c config.yaml -o results.json
       "total": 25,
       "rate": 0.20
     },
-    "improvement": "+60.0%"
+    "improvement": "+60.0%",
+    "tool_coverage": {
+      "total_available": 15,
+      "total_used": 8,
+      "coverage_rate": 0.533,
+      "unused_tools": ["WebFetch", "NotebookEdit", "Skill", "WebSearch", "Task", "TodoWrite", "Agent"],
+      "most_used": {
+        "Bash": 127,
+        "Read": 98,
+        "Grep": 45,
+        "Write": 23,
+        "Edit": 12,
+        "Glob": 8,
+        "mcp__filesystem__read_file": 5,
+        "mcp__filesystem__write_file": 2
+      },
+      "least_used": {
+        "mcp__filesystem__write_file": 2,
+        "mcp__filesystem__read_file": 5
+      },
+      "all_tool_usage": {
+        "Bash": 127,
+        "Read": 98,
+        "Grep": 45,
+        "Write": 23,
+        "Edit": 12,
+        "Glob": 8,
+        "mcp__filesystem__read_file": 5,
+        "mcp__filesystem__write_file": 2
+      }
+    }
   },
   "tasks": [...]
 }
@@ -194,6 +250,27 @@ Each task includes detailed metrics:
 | `fail_to_pass` | Tests that should now pass |
 | `pass_to_pass` | Regression tests |
 | `error` | Error message if failed |
+
+### Tool Coverage Metrics
+
+The `tool_coverage` section in the summary provides insights into which tools are being used:
+
+| Field | Description |
+|-------|-------------|
+| `total_available` | Total number of tools available to the agent (built-in + MCP) |
+| `total_used` | Number of distinct tools actually called during evaluation |
+| `coverage_rate` | Percentage of available tools used (0.0 to 1.0) |
+| `unused_tools` | List of tools that were never called |
+| `most_used` | Dictionary of most frequently used tools with call counts |
+| `least_used` | Dictionary of least frequently used tools with call counts |
+| `all_tool_usage` | Complete breakdown of all tool usage across all tasks |
+
+This helps identify:
+
+- Which MCP tools are actually being utilized
+- Whether certain tools are being ignored (low discoverability)
+- The most valuable tools for solving tasks
+- Opportunities to simplify tool offerings
 
 ## YAML Output
 

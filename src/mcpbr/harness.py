@@ -560,6 +560,7 @@ async def run_evaluation(
 
     # Calculate cost-effectiveness metrics
     from .pricing import calculate_cost_effectiveness
+    from .reporting import calculate_tool_coverage
 
     cost_effectiveness = calculate_cost_effectiveness(
         mcp_cost=mcp_cost,
@@ -567,6 +568,14 @@ async def run_evaluation(
         mcp_resolved=mcp_resolved,
         baseline_resolved=baseline_resolved,
     )
+
+    # Create temporary results object for coverage calculation
+    temp_results = EvaluationResults(
+        metadata={},
+        summary={},
+        tasks=results,
+    )
+    tool_coverage = calculate_tool_coverage(temp_results)
 
     return EvaluationResults(
         metadata={
@@ -614,6 +623,7 @@ async def run_evaluation(
                     "cost_per_additional_resolution"
                 ],
             },
+            "tool_coverage": tool_coverage,
         },
         tasks=results,
     )

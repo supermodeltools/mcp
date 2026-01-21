@@ -1,6 +1,7 @@
 """Reporting utilities for evaluation results."""
 
 import json
+from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,6 +13,106 @@ from .pricing import format_cost
 
 if TYPE_CHECKING:
     from .harness import EvaluationResults
+
+
+class ToolCoverageReport:
+    """Analyzes tool coverage across evaluation runs.
+
+    Tracks which MCP tools are available vs. actually used to help developers
+    understand tool discoverability and usefulness.
+    """
+
+    def __init__(self, available_tools: list[str] | None = None) -> None:
+        """Initialize tool coverage report.
+
+        Args:
+            available_tools: List of available MCP tool names. If None, will be
+                inferred from usage data.
+        """
+        self.available_tools = set(available_tools) if available_tools else set()
+        self.tool_usage_counter: Counter[str] = Counter()
+
+    def add_task_usage(self, tool_usage: dict[str, int]) -> None:
+        """Add tool usage from a single task.
+
+        Args:
+            tool_usage: Dictionary mapping tool names to call counts.
+        """
+        self.tool_usage_counter.update(tool_usage)
+        # Track all tools that were used (for when available_tools not provided)
+        self.available_tools.update(tool_usage.keys())
+
+    def get_coverage_metrics(self) -> dict[str, int | float | list[str]]:
+        """Calculate coverage metrics.
+
+        Returns:
+            Dictionary with coverage metrics including:
+            - total_available: Total number of available tools
+            - total_used: Number of tools actually used
+            - coverage_rate: Percentage of tools used (0-1)
+            - unused_tools: List of tools that were never called
+            - most_used: List of (tool_name, count) tuples for most used tools
+            - least_used: List of (tool_name, count) tuples for least used tools
+        """
+        used_tools = set(self.tool_usage_counter.keys())
+        unused_tools = sorted(self.available_tools - used_tools)
+
+        total_available = len(self.available_tools)
+        total_used = len(used_tools)
+        coverage_rate = total_used / total_available if total_available > 0 else 0.0
+
+        # Get most and least used tools (among those that were used)
+        most_used = self.tool_usage_counter.most_common(10)
+        least_used = self.tool_usage_counter.most_common()[:-11:-1] if used_tools else []
+
+        return {
+            "total_available": total_available,
+            "total_used": total_used,
+            "coverage_rate": coverage_rate,
+            "unused_tools": unused_tools,
+            "most_used": most_used,
+            "least_used": least_used,
+        }
+
+    def to_dict(self) -> dict[str, int | float | list[str] | dict[str, int]]:
+        """Convert coverage report to dictionary format.
+
+        Returns:
+            Dictionary representation suitable for JSON/YAML serialization.
+        """
+        metrics = self.get_coverage_metrics()
+        return {
+            "total_available": metrics["total_available"],
+            "total_used": metrics["total_used"],
+            "coverage_rate": metrics["coverage_rate"],
+            "unused_tools": metrics["unused_tools"],
+            "most_used": dict(metrics["most_used"]),
+            "least_used": dict(metrics["least_used"]),
+            "all_tool_usage": dict(self.tool_usage_counter),
+        }
+
+
+def calculate_tool_coverage(
+    results: "EvaluationResults", available_tools: list[str] | None = None
+) -> dict[str, int | float | list[str] | dict[str, int]]:
+    """Calculate tool coverage from evaluation results.
+
+    Args:
+        results: Evaluation results containing task data.
+        available_tools: Optional list of available tool names. If not provided,
+            will be inferred from tool usage data.
+
+    Returns:
+        Dictionary with tool coverage metrics.
+    """
+    coverage = ToolCoverageReport(available_tools)
+
+    # Collect tool usage from all tasks (MCP agent only)
+    for task in results.tasks:
+        if task.mcp and task.mcp.get("tool_usage"):
+            coverage.add_task_usage(task.mcp["tool_usage"])
+
+    return coverage.to_dict()
 
 
 def print_summary(results: "EvaluationResults", console: Console) -> None:
@@ -47,6 +148,42 @@ def print_summary(results: "EvaluationResults", console: Console) -> None:
     console.print(table)
     console.print()
     console.print(f"[bold]Improvement:[/bold] {results.summary['improvement']}")
+
+    # Print tool coverage if available
+    tool_coverage = results.summary.get("tool_coverage")
+    if tool_coverage:
+        console.print()
+        console.print("[bold]Tool Coverage Analysis[/bold]")
+        console.print()
+
+        coverage_table = Table(title="MCP Tool Usage")
+        coverage_table.add_column("Metric", style="cyan")
+        coverage_table.add_column("Value", style="green")
+
+        coverage_table.add_row("Available Tools", str(tool_coverage.get("total_available", 0)))
+        coverage_table.add_row("Used Tools", str(tool_coverage.get("total_used", 0)))
+        coverage_rate = tool_coverage.get("coverage_rate", 0.0)
+        coverage_table.add_row("Coverage Rate", f"{coverage_rate:.1%}")
+
+        console.print(coverage_table)
+
+        # Show most used tools
+        most_used = tool_coverage.get("most_used", {})
+        if most_used:
+            console.print()
+            console.print("[bold]Most Used Tools:[/bold]")
+            for tool_name, count in list(most_used.items())[:5]:
+                console.print(f"  {tool_name}: {count}")
+
+        # Show unused tools
+        unused_tools = tool_coverage.get("unused_tools", [])
+        if unused_tools:
+            console.print()
+            console.print(f"[bold]Unused Tools ({len(unused_tools)}):[/bold]")
+            for tool_name in unused_tools[:10]:
+                console.print(f"  {tool_name}")
+            if len(unused_tools) > 10:
+                console.print(f"  ... and {len(unused_tools) - 10} more")
 
     # Print cost analysis
     console.print()
@@ -280,6 +417,39 @@ def save_markdown_report(results: "EvaluationResults", output_path: Path) -> Non
             lines.append("**Note:** Budget limit reached - evaluation halted early")
 
     lines.append("")
+
+    # Add tool coverage analysis
+    tool_coverage = results.summary.get("tool_coverage")
+    if tool_coverage:
+        lines.append("## Tool Coverage Analysis")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| Available Tools | {tool_coverage.get('total_available', 0)} |")
+        lines.append(f"| Used Tools | {tool_coverage.get('total_used', 0)} |")
+        coverage_rate = tool_coverage.get("coverage_rate", 0.0)
+        lines.append(f"| Coverage Rate | {coverage_rate:.1%} |")
+        lines.append("")
+
+        # Most used tools
+        most_used = tool_coverage.get("most_used", {})
+        if most_used:
+            lines.append("### Most Used Tools")
+            lines.append("")
+            lines.append("| Tool | Call Count |")
+            lines.append("|------|------------|")
+            for tool_name, count in list(most_used.items())[:10]:
+                lines.append(f"| {tool_name} | {count} |")
+            lines.append("")
+
+        # Unused tools
+        unused_tools = tool_coverage.get("unused_tools", [])
+        if unused_tools:
+            lines.append(f"### Unused Tools ({len(unused_tools)})")
+            lines.append("")
+            for tool_name in unused_tools:
+                lines.append(f"- {tool_name}")
+            lines.append("")
 
     lines.append("## MCP Server Configuration")
     lines.append("")
