@@ -1,0 +1,50 @@
+# Test Your MCP Server Configuration
+#
+# Use this configuration to quickly test your own MCP server with mcpbr.
+# This runs a single task to validate your server configuration before
+# running larger evaluations.
+#
+# Steps:
+# 1. Update the mcp_server section below with your server details
+# 2. Set any required environment variables
+# 3. Run: mcpbr run -c examples/quick-start/test-your-mcp-server.yaml -vv
+# 4. Review the detailed output to see your server's tools in action
+#
+# Expected runtime: 3-10 minutes per task
+# Expected cost: $0.30-1.00
+
+mcp_server:
+  # TODO: Update these settings for your MCP server
+  name: "my-server"          # Choose a descriptive name
+  command: "npx"             # Command to start your server (npx, python, node, etc.)
+  args:
+    - "-y"
+    - "your-mcp-package"     # Update with your package name
+    - "{workdir}"            # Pass workspace to your server
+  env: {}                    # Add required environment variables
+
+provider: "anthropic"
+agent_harness: "claude-code"
+
+# Use Sonnet for good testing balance
+model: "sonnet"
+
+benchmark: "swe-bench"
+dataset: "SWE-bench/SWE-bench_Lite"
+
+# Single task for quick validation
+sample_size: 1
+
+# Standard timeout
+timeout_seconds: 600
+
+# Single concurrent task for easier debugging
+max_concurrent: 1
+
+# Standard iterations
+max_iterations: 30
+
+use_prebuilt_images: true
+
+# Low budget for testing
+budget: 2.0

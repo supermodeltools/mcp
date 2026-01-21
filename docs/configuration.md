@@ -14,6 +14,28 @@ faq:
 
 mcpbr uses YAML configuration files to define your MCP server settings and evaluation parameters.
 
+## Getting Started with Examples
+
+!!! tip "New to mcpbr?"
+    The fastest way to get started is with our **[example configurations](https://github.com/greynewell/mcpbr/tree/main/examples)**. We provide 25+ ready-to-use configs for common scenarios:
+
+    - **Quick Start**: Getting started, testing servers, comparing models
+    - **Benchmarks**: SWE-bench Lite/Full, CyberGym basic/advanced
+    - **MCP Servers**: Filesystem, GitHub, Brave Search, databases, custom servers
+    - **Scenarios**: Cost-optimized, performance-optimized, CI/CD, regression detection
+
+    ```bash
+    # Run an example config directly
+    mcpbr run -c examples/quick-start/getting-started.yaml -v
+
+    # Or copy and customize
+    cp examples/scenarios/balanced.yaml my-config.yaml
+    vim my-config.yaml
+    mcpbr run -c my-config.yaml
+    ```
+
+    See the **[Examples README](https://github.com/greynewell/mcpbr/tree/main/examples/README.md)** for the complete guide.
+
 ## Generating a Config File
 
 ### Using Templates (Recommended)
@@ -207,6 +229,51 @@ The `dataset` field is optional. If not specified, each benchmark uses its defau
 | Field | Default | Description |
 |-------|---------|-------------|
 | `use_prebuilt_images` | `true` | Use pre-built SWE-bench Docker images when available |
+
+### Partial Results Configuration
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `save_partial_results` | `true` | Enable automatic saving of intermediate results |
+| `partial_results_interval` | `60` | Interval in seconds between automatic saves |
+
+Partial results allow you to recover from interruptions and prevent data loss during long-running evaluations:
+
+- Results are automatically saved at regular intervals
+- Graceful shutdown handling on SIGINT/SIGTERM
+- Resume capability from saved state
+- Metadata tracking for completion status
+
+!!! tip "CLI Control"
+    Control partial results from the command line:
+    ```bash
+    # Specify custom save location
+    mcpbr run -c config.yaml --partial-results results.partial.json
+
+    # Disable partial results
+    mcpbr run -c config.yaml --no-partial-results
+
+    # Resume from previous run
+    mcpbr run -c config.yaml --resume --partial-results results.partial.json
+
+    # Adjust save interval
+    mcpbr run -c config.yaml --partial-interval 120
+    ```
+
+### Budget Control
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `budget` | `null` | Maximum budget in USD (halts evaluation when reached) |
+
+Set a budget limit to prevent runaway costs:
+
+```yaml
+budget: 10.0  # Stop after spending $10
+```
+
+!!! warning "Budget Limit"
+    When the budget is exceeded, the evaluation will halt gracefully and save all completed results. This is useful for cost-controlled experiments.
 
 ## Example Configurations
 

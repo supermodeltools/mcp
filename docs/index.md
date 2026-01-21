@@ -65,19 +65,45 @@ mcpbr runs controlled experiments: same model, same tasks, same environment - th
 
 ## Quick Start
 
-### 1. Set your API key
+### Option 1: Use Example Configurations (Fastest)
+
+Get started in seconds with our ready-to-use examples:
+
+```bash
+# Set your API key
+export ANTHROPIC_API_KEY="your-api-key"
+
+# Run your first evaluation
+mcpbr run -c examples/quick-start/getting-started.yaml -v
+```
+
+This runs 5 SWE-bench tasks with the filesystem server. Expected runtime: 15-30 minutes, cost: $2-5.
+
+!!! tip "Explore 25+ Example Configurations"
+    Browse the [`examples/`](https://github.com/greynewell/mcpbr/tree/main/examples) directory for:
+
+    - **Quick Start**: Getting started, testing servers, comparing models
+    - **Benchmarks**: SWE-bench Lite/Full, CyberGym basic/advanced
+    - **MCP Servers**: Filesystem, GitHub, Brave Search, databases, custom servers
+    - **Scenarios**: Cost-optimized, performance-optimized, CI/CD, regression detection
+
+    See the [Examples README](https://github.com/greynewell/mcpbr/tree/main/examples/README.md) for the complete guide.
+
+### Option 2: Generate Custom Configuration
+
+#### 1. Set your API key
 
 ```bash
 export ANTHROPIC_API_KEY="your-api-key"
 ```
 
-### 2. Generate a configuration file
+#### 2. Generate a configuration file
 
 ```bash
 mcpbr init
 ```
 
-### 3. Edit the configuration
+#### 3. Edit the configuration
 
 Point it to your MCP server:
 
@@ -99,7 +125,7 @@ timeout_seconds: 300
 max_concurrent: 4
 ```
 
-### 4. Run the evaluation
+#### 4. Run the evaluation
 
 ```bash
 mcpbr run --config mcpbr.yaml
@@ -135,8 +161,13 @@ Host Machine
 
 ## Next Steps
 
+- [Examples](https://github.com/greynewell/mcpbr/tree/main/examples) - Browse 25+ example configurations
 - [FAQ](FAQ.md) - Frequently asked questions
+- [Best Practices](best-practices.md) - Guide to effective mcpbr usage
 - [Installation](installation.md) - Prerequisites and installation options
 - [Configuration](configuration.md) - Full configuration reference
 - [CLI Reference](cli.md) - All available commands and options
 - [MCP Integration](mcp-integration.md) - How to test your MCP server
+- [Benchmarks](benchmarks.md) - Available benchmarks and how to use them
+- [Evaluation Results](evaluation-results.md) - Understanding output formats
+- [Troubleshooting](troubleshooting.md) - Common issues and solutions

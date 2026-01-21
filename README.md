@@ -222,6 +222,30 @@ uv pip install -e .
 
 ## Quick Start
 
+### Option 1: Use Example Configurations (Recommended)
+
+Get started in seconds with our example configurations:
+
+```bash
+# Set your API key
+export ANTHROPIC_API_KEY="your-api-key"
+
+# Run your first evaluation using an example config
+mcpbr run -c examples/quick-start/getting-started.yaml -v
+```
+
+This runs 5 SWE-bench tasks with the filesystem server. Expected runtime: 15-30 minutes, cost: $2-5.
+
+**Explore 25+ example configurations** in the [`examples/`](examples/) directory:
+- **Quick Start**: Getting started, testing servers, comparing models
+- **Benchmarks**: SWE-bench Lite/Full, CyberGym basic/advanced
+- **MCP Servers**: Filesystem, GitHub, Brave Search, databases, custom servers
+- **Scenarios**: Cost-optimized, performance-optimized, CI/CD, regression detection
+
+See the **[Examples README](examples/README.md)** for the complete guide.
+
+### Option 2: Generate Custom Configuration
+
 1. **Set your API key:**
 
 ```bash
@@ -1006,6 +1030,18 @@ We welcome contributions! Check out our **30+ good first issues** perfect for ne
 - **Documentation**: Best practices, examples, guides
 
 See the [contributing guide](https://greynewell.github.io/mcpbr/contributing/) to get started!
+
+## Best Practices
+
+New to mcpbr or want to optimize your workflow? Check out the **[Best Practices Guide](https://greynewell.github.io/mcpbr/best-practices/)** for:
+
+- Benchmark selection guidelines
+- MCP server configuration tips
+- Performance optimization strategies
+- Cost management techniques
+- CI/CD integration patterns
+- Debugging workflows
+- Common pitfalls to avoid
 
 ## Contributing
 
