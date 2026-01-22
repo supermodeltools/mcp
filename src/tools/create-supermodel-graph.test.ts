@@ -70,19 +70,19 @@ describe('create-supermodel-graph', () => {
       } as any;
     });
 
-    it('should return error when no arguments provided', async () => {
+    it('should return error when no arguments provided and no default workdir', async () => {
       const result = await handler(mockClient, undefined);
 
       expect(result.content).toEqual([
         {
           type: 'text',
-          text: expect.stringContaining('Missing required arguments'),
+          text: expect.stringContaining('No "directory" parameter provided and no default workdir configured'),
         },
       ]);
       expect(result.isError).toBe(true);
     });
 
-    it('should return error when directory is missing', async () => {
+    it('should return error when directory is missing and no default workdir', async () => {
       const args = {
         query: 'summary',
       };
@@ -92,7 +92,7 @@ describe('create-supermodel-graph', () => {
       expect(result.content).toEqual([
         {
           type: 'text',
-          text: expect.stringContaining('Invalid "directory" parameter'),
+          text: expect.stringContaining('No "directory" parameter provided and no default workdir configured'),
         },
       ]);
       expect(result.isError).toBe(true);
@@ -113,6 +113,24 @@ describe('create-supermodel-graph', () => {
         },
       ]);
       expect(result.isError).toBe(true);
+    });
+
+    it('should use default workdir when directory is not provided', async () => {
+      const args = {
+        query: 'summary',
+      };
+      const defaultWorkdir = '/default/workdir';
+
+      const result = await handler(mockClient, args, defaultWorkdir);
+
+      // Should not error with validation message since defaultWorkdir is provided
+      // The actual behavior depends on whether the directory exists
+      // but the validation should pass
+      expect(result.isError).toBe(true); // Will error on actual zip creation, not validation
+      const content = result.content[0];
+      if (content.type === 'text') {
+        expect(content.text).not.toContain('No "directory" parameter provided');
+      }
     });
   });
 

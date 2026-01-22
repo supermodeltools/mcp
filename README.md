@@ -66,6 +66,34 @@ With the API key set globally, you can omit the `env` block from your MCP config
 }
 ```
 
+### Default Working Directory (Optional)
+
+For automated benchmarking tools (like mcpbr) or batch processing, you can specify a default working directory as a command-line argument. When provided, the `explore_codebase` tool will use this directory automatically if no explicit `directory` parameter is given.
+
+**Command-line usage:**
+
+```bash
+npx @supermodeltools/mcp-server /path/to/repository
+```
+
+or with Node.js:
+
+```bash
+node dist/index.js /path/to/repository
+```
+
+**Example with benchmarking tools:**
+
+```yaml
+mcp_server:
+  command: "npx"
+  args: ["-y", "@supermodeltools/mcp-server", "{workdir}"]
+  env:
+    SUPERMODEL_API_KEY: "${SUPERMODEL_API_KEY}"
+```
+
+This allows the agent to call `explore_codebase()` without specifying a directory parameter, automatically using the configured default workdir. You can still override it by explicitly passing a `directory` parameter in individual tool calls.
+
 ## Usage
 
 ### Cursor

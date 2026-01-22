@@ -169,7 +169,7 @@ Query types available: graph_status, summary, get_node, search, list_nodes, func
         description: 'Raw jq filter for escape hatch queries or legacy mode (when query param not specified)',
       },
     },
-    required: ['directory'],
+    required: [],
   },
 };
 
@@ -215,15 +215,14 @@ function generateIdempotencyKey(directory: string): string {
   return `${repoName}-${pathHash}:supermodel:${hash}${statusHash}`;
 }
 
-export const handler: HandlerFunction = async (client: ClientContext, args: Record<string, unknown> | undefined) => {
+export const handler: HandlerFunction = async (client: ClientContext, args: Record<string, unknown> | undefined, defaultWorkdir?: string) => {
   if (!args) {
-    logger.error('No arguments provided to handler');
-    return asErrorResult('Missing required arguments. Provide a "directory" parameter.');
+    args = {};
   }
 
   const {
     jq_filter,
-    directory,
+    directory: providedDirectory,
     query,
     targetId,
     searchText,
@@ -236,10 +235,25 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
     includeRaw,
   } = args as any;
 
-  // Validate directory
+  // Use provided directory or fall back to default workdir
+  const directory = providedDirectory || defaultWorkdir;
+
+  // Validate directory - check if explicitly invalid first
+  if (providedDirectory !== undefined && typeof providedDirectory !== 'string') {
+    logger.error('Invalid directory parameter:', providedDirectory);
+    return asErrorResult('Invalid "directory" parameter. Provide a valid directory path as a string.');
+  }
+
+  // Check if we have any directory at all
   if (!directory || typeof directory !== 'string') {
     logger.error('Invalid directory parameter:', directory);
-    return asErrorResult('Invalid "directory" parameter. Provide a valid directory path as a string.');
+    return asErrorResult('No "directory" parameter provided and no default workdir configured. Please provide a directory path or start the server with a workdir argument.');
+  }
+
+  if (providedDirectory) {
+    logger.debug('Using provided directory:', directory);
+  } else {
+    logger.debug('Using default workdir:', directory);
   }
 
   // Generate idempotency key for API request
