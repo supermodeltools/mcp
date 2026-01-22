@@ -35,8 +35,10 @@ const fetchWithTimeout: typeof fetch = (url, init) => {
 export class Server {
   private server: McpServer;
   private client: ClientContext;
+  private defaultWorkdir?: string;
 
-  constructor() {
+  constructor(defaultWorkdir?: string) {
+    this.defaultWorkdir = defaultWorkdir;
     this.server = new McpServer(
       {
         name: 'supermodel_api',
@@ -90,6 +92,9 @@ Example:
     logger.debug('Server configuration:');
     logger.debug('Base URL:', config.basePath);
     logger.debug('API Key set:', !!process.env.SUPERMODEL_API_KEY);
+    if (this.defaultWorkdir) {
+      logger.debug('Default workdir:', this.defaultWorkdir);
+    }
 
     this.client = {
       graphs: new DefaultApi(config),
@@ -109,7 +114,7 @@ Example:
       const { name, arguments: args } = request.params;
       
       if (name === createSupermodelGraphTool.tool.name) {
-        return createSupermodelGraphTool.handler(this.client, args);
+        return createSupermodelGraphTool.handler(this.client, args, this.defaultWorkdir);
       }
       
       throw new Error(`Unknown tool: ${name}`);

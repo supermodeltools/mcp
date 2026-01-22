@@ -18,7 +18,8 @@ export type ToolCallResult = {
 
 export type HandlerFunction = (
   client: ClientContext,
-  args: Record<string, unknown> | undefined
+  args: Record<string, unknown> | undefined,
+  defaultWorkdir?: string
 ) => Promise<ToolCallResult>;
 
 export type Metadata = {
