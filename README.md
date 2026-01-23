@@ -55,73 +55,7 @@ echo $MCP_TOOL_TIMEOUT
 
 </details>
 
-<details>
-<summary><strong>Claude Desktop (macOS)</strong></summary>
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "supermodel": {
-      "command": "npx",
-      "args": ["-y", "@supermodeltools/mcp-server"],
-      "env": {
-        "SUPERMODEL_API_KEY": "your-api-key",
-        "MCP_TOOL_TIMEOUT": "900000"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>Claude Desktop (Linux)</strong></summary>
-
-Edit `~/.config/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "supermodel": {
-      "command": "npx",
-      "args": ["-y", "@supermodeltools/mcp-server"],
-      "env": {
-        "SUPERMODEL_API_KEY": "your-api-key",
-        "MCP_TOOL_TIMEOUT": "900000"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>Claude Desktop (Windows)</strong></summary>
-
-Edit `%APPDATA%\Claude\claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "supermodel": {
-      "command": "npx",
-      "args": ["-y", "@supermodeltools/mcp-server"],
-      "env": {
-        "SUPERMODEL_API_KEY": "your-api-key",
-        "MCP_TOOL_TIMEOUT": "900000"
-      }
-    }
-  }
-}
-```
-
-</details>
-
-For more details on timeout configuration, see the [official Claude Code documentation](https://code.claude.com/docs/en/settings.md).
+**Note:** Timeout configuration via `MCP_TOOL_TIMEOUT` is only supported in Claude Code CLI. For more details, see the [official Claude Code documentation](https://code.claude.com/docs/en/settings.md).
 
 ## Configuration
 
@@ -219,25 +153,7 @@ Add to `~/.cursor/mcp.json`:
 }
 ```
 
-### Claude Desktop
-
-Add to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "supermodel": {
-      "command": "npx",
-      "args": ["-y", "@supermodeltools/mcp-server"],
-      "env": {
-        "SUPERMODEL_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
-
-### Claude Code
+### Claude Code CLI
 
 Add the MCP server with your API key:
 
