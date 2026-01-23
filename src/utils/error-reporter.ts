@@ -20,11 +20,12 @@ export async function reportError(error: StructuredError): Promise<void> {
   if (reportedThisSession.has(error.code)) return;
   reportedThisSession.add(error.code);
 
-  const title = `[auto-report] ${error.code}: ${error.message}`;
+  const code = error.code.toLowerCase().replace(/_/g, '-');
+  const title = `[auto-report] ${code}: ${error.message}`;
 
   try {
     // Check if an open issue with this error code already exists
-    const existing = await ghExec(['issue', 'list', '--repo', REPO, '--state', 'open', '--search', `[auto-report] ${error.code}`, '--limit', '1', '--json', 'number']);
+    const existing = await ghExec(['issue', 'list', '--repo', REPO, '--state', 'open', '--search', `[auto-report] ${code}`, '--limit', '1', '--json', 'number']);
     const issues = JSON.parse(existing);
     if (issues.length > 0) {
       logger.debug(`Issue already exists for ${error.code}: #${issues[0].number}`);
