@@ -826,6 +826,17 @@ async function fetchFromApi(client: ClientContext, file: string, idempotencyKey:
  * to produce an agent-actionable error with recovery guidance.
  */
 function classifyApiError(error: any): StructuredError {
+  // Guard against non-Error throws (strings, nulls, plain objects)
+  if (!error || typeof error !== 'object') {
+    return {
+      type: 'internal_error',
+      message: typeof error === 'string' ? error : 'An unexpected error occurred.',
+      code: 'UNKNOWN_ERROR',
+      recoverable: false,
+      details: { errorType: typeof error },
+    };
+  }
+
   if (error.response) {
     const status = error.response.status;
 
