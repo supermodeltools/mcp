@@ -807,13 +807,13 @@ async function fetchFromApi(client: ClientContext, file: string, idempotencyKey:
     // Log detailed error information
     await logErrorResponse(error);
 
-    // Re-throw with enhanced error message
+    // Preserve error.response so classifyApiError can read the status code (#75)
     if (error.response?.status === 401) {
-      throw new Error(`API authentication failed (401 Unauthorized). Please check your SUPERMODEL_API_KEY environment variable.`);
+      error.message = 'API authentication failed (401 Unauthorized). Please check your SUPERMODEL_API_KEY environment variable.';
     } else if (error.response?.status === 403) {
-      throw new Error(`API access forbidden (403 Forbidden). Your API key may not have permission to access this resource.`);
+      error.message = 'API access forbidden (403 Forbidden). Your API key may not have permission to access this resource.';
     } else if (error.response?.status >= 500) {
-      throw new Error(`Supermodel API server error (${error.response.status}). The service may be temporarily unavailable.`);
+      error.message = `Supermodel API server error (${error.response.status}). The service may be temporarily unavailable.`;
     }
 
     throw error;
