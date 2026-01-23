@@ -18,6 +18,45 @@ Or run directly:
 npx @supermodeltools/mcp-server
 ```
 
+## ⚠️ Important: Configure Timeout for Large Codebase Analysis
+
+The `explore_codebase` tool can take **5-15 minutes** to analyze large repositories. Most MCP clients have a default timeout of 60-120 seconds, which will cause the operation to fail prematurely.
+
+**Quick Setup:**
+
+Add this to your shell profile to set a 15-minute timeout:
+
+```bash
+export MCP_TOOL_TIMEOUT=900000
+```
+
+**Installation by Client:**
+
+<details>
+<summary><strong>Claude Code CLI</strong></summary>
+
+Add to your shell profile (`~/.zshrc` for macOS or `~/.bashrc` for Linux):
+
+```bash
+export MCP_TOOL_TIMEOUT=900000
+```
+
+Then reload your shell:
+
+```bash
+source ~/.zshrc  # or ~/.bashrc
+```
+
+Verify it's set:
+
+```bash
+echo $MCP_TOOL_TIMEOUT
+```
+
+</details>
+
+**Note:** Timeout configuration via `MCP_TOOL_TIMEOUT` is only supported in Claude Code CLI. For more details, see the [official Claude Code documentation](https://code.claude.com/docs/en/settings.md).
+
 ## Configuration
 
 Get your API key from the [Supermodel Dashboard](https://dashboard.supermodeltools.com).
@@ -114,25 +153,7 @@ Add to `~/.cursor/mcp.json`:
 }
 ```
 
-### Claude Desktop
-
-Add to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "supermodel": {
-      "command": "npx",
-      "args": ["-y", "@supermodeltools/mcp-server"],
-      "env": {
-        "SUPERMODEL_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
-
-### Claude Code
+### Claude Code CLI
 
 Add the MCP server with your API key:
 
