@@ -250,7 +250,143 @@ The `explore_codebase` tool analyzes your entire repository to build a comprehen
 
 ## Troubleshooting
 
-Debug logs go to stderr:
+### Timeout Errors
+
+#### "Request timeout"
+
+**Cause:** The analysis is taking longer than your MCP client's timeout allows (varies by client—Claude Code CLI defaults to ~2 minutes, Claude Desktop enforces 5 minutes). Large repositories or complex codebases may require more time to analyze.
+
+**Solutions:**
+
+1. **Analyze a subdirectory instead** - Target specific parts of your codebase:
+   ```bash
+   # Instead of analyzing the entire repo
+   explore_codebase(directory="/path/to/repo")
+
+   # Analyze just the core module
+   explore_codebase(directory="/path/to/repo/src/core")
+   ```
+
+2. **Increase your MCP client timeout** - For Claude Code CLI, set the `MCP_TOOL_TIMEOUT` environment variable:
+
+   ```bash
+   # Set timeout to 15 minutes (900000ms) for large codebase analysis
+   export MCP_TOOL_TIMEOUT=900000
+   ```
+
+   Then reload your shell or start a new terminal session. This timeout applies to all MCP tool executions.
+
+   **Note:** Timeout configuration is currently only supported in Claude Code CLI.
+
+3. **Verify `.gitignore` excludes build artifacts** - Ensure your repository excludes:
+   - `node_modules/`, `vendor/`, `venv/`
+   - `dist/`, `build/`, `out/`
+   - `.next/`, `.nuxt/`, `.cache/`
+
+   The MCP server automatically excludes these patterns when zipping, but `.gitignore` prevents them from being in your working directory in the first place—both improve performance and reduce analysis size.
+
+#### "Analysis interrupted mid-way"
+
+**Cause:** Network interruption or the MCP server process was terminated before completion.
+
+**Solutions:**
+
+1. **Check MCP server logs** - Logs location varies by client:
+
+   > **Note:** Log filenames match your MCP server name from the config. If you named it differently (e.g., `my-server`), look for `mcp-server-my-server.log` instead of `mcp-server-supermodel.log`.
+
+   **Claude Desktop (macOS):**
+   ```bash
+   tail -f ~/Library/Logs/Claude/mcp-server-supermodel.log
+   ```
+
+   **Claude Desktop (Windows):**
+   ```powershell
+   Get-Content "$env:APPDATA\Claude\Logs\mcp-server-supermodel.log" -Wait
+   ```
+
+   **Claude Desktop (Linux):**
+   ```bash
+   tail -f ~/.config/Claude/logs/mcp-server-supermodel.log
+   ```
+
+   **Cursor:**
+   ```bash
+   # Check the Cursor logs directory
+   tail -f ~/Library/Application\ Support/Cursor/logs/mcp-server-supermodel.log
+   ```
+
+   **Claude Code:**
+   ```bash
+   # Logs are shown in the terminal when running with verbose mode
+   claude --verbose
+   ```
+
+2. **Retry the analysis** - Temporary network issues often resolve on retry
+
+3. **Check your internet connection** - The analysis requires a stable connection to the Supermodel API
+
+4. **Verify the API is accessible:**
+   ```bash
+   curl -H "Authorization: Bearer YOUR_API_KEY" https://api.supermodeltools.com/health
+   ```
+
+#### "ERROR Request failed. Check the MCP server logs"
+
+**Multiple possible causes:**
+
+##### 1. Missing or invalid API key
+
+Check if your API key is set:
+```bash
+echo $SUPERMODEL_API_KEY
+```
+
+Verify it's valid at [Supermodel Dashboard](https://dashboard.supermodeltools.com).
+
+**Solution:**
+```bash
+# Set in your shell profile (~/.zshrc or ~/.bashrc)
+export SUPERMODEL_API_KEY="your-api-key"
+source ~/.zshrc
+
+# Or update your MCP client config with the correct key
+```
+
+##### 2. API service outage or rate limiting
+
+Check the error details in logs (see log locations above).
+
+**Solution:**
+- Visit [Supermodel Status](https://status.supermodeltools.com) for service status
+- If rate limited, wait a few minutes before retrying
+- Consider upgrading your API plan if hitting rate limits frequently
+
+##### 3. Repository too large
+
+The API has size limits for analysis. Check the [Supermodel documentation](https://docs.supermodeltools.com) for current limits.
+
+**Solution:**
+```bash
+# Check your repo size
+du -sh /path/to/repo
+
+# If too large, analyze subdirectories instead
+explore_codebase(directory="/path/to/repo/src")
+```
+
+##### 4. Network or firewall issues
+
+Corporate firewalls may block outbound requests to the Supermodel API.
+
+**Solution:**
+- Test connectivity: `curl https://api.supermodeltools.com/health`
+- Check firewall rules allow HTTPS to `api.supermodeltools.com`
+- Contact your IT department if behind a corporate proxy
+
+### Debug Logging
+
+Debug logs go to stderr and include:
 
 - `[DEBUG] Server configuration:` - Startup config
 - `[DEBUG] Auto-zipping directory:` - Starting zip creation
@@ -258,12 +394,32 @@ Debug logs go to stderr:
 - `[DEBUG] Making API request` - Request details
 - `[ERROR] API call failed:` - Error details with HTTP status
 
-**Common issues:**
-- 401: Check `SUPERMODEL_API_KEY` is set
-- ZIP too large: Directory contains too many files/dependencies. Ensure `.gitignore` is configured properly
-- Permission denied: Check read permissions on the directory
-- Insufficient disk space: Free up space in your system's temp directory
-- Directory does not exist: Verify the path is correct and absolute
+To enable verbose logging, set the `DEBUG` environment variable:
+
+```bash
+# In your MCP config
+{
+  "mcpServers": {
+    "supermodel": {
+      "command": "npx",
+      "args": ["-y", "@supermodeltools/mcp-server"],
+      "env": {
+        "SUPERMODEL_API_KEY": "your-api-key",
+        "DEBUG": "supermodel:*"
+      }
+    }
+  }
+}
+```
+
+### Common Issues
+
+- **401 Unauthorized:** Check `SUPERMODEL_API_KEY` is set correctly
+- **ZIP too large:** Directory contains too many files/dependencies. Ensure `.gitignore` is configured properly
+- **Permission denied:** Check read permissions on the directory
+- **Insufficient disk space:** Free up space in your system's temp directory
+- **Directory does not exist:** Verify the path is correct and absolute
+- **ENOTFOUND or connection errors:** Check your internet connection and firewall settings
 
 ## Benchmarking
 
