@@ -254,8 +254,10 @@ describe('create-supermodel-graph', () => {
         const result = classifyApiError({ response: { status: 507 } });
         expect(result.type).toBe('internal_error');
         expect(result.code).toBe('API_ERROR');
+        expect(result.recoverable).toBe(true);
         expect(result.reportable).toBe(true);
         expect(result.repo).toBe('https://github.com/supermodeltools/mcp.git');
+        expect(result.suggestion).toContain('Wait a few minutes and retry');
         expect(result.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
       });
 
@@ -263,6 +265,7 @@ describe('create-supermodel-graph', () => {
         const result = classifyApiError({ response: { status: 418 } });
         expect(result.type).toBe('validation_error');
         expect(result.code).toBe('API_ERROR');
+        expect(result.recoverable).toBe(false);
         expect(result.reportable).toBeUndefined();
       });
     });

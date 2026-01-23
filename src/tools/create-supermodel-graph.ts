@@ -909,8 +909,12 @@ export function classifyApiError(error: any): StructuredError {
           type: isServerError ? 'internal_error' : 'validation_error',
           message: `API request failed with HTTP ${status}.`,
           code: 'API_ERROR',
-          recoverable: false,
-          ...(isServerError && { reportable: true, repo: REPORT_REPO, suggestion: REPORT_SUGGESTION }),
+          recoverable: isServerError,
+          ...(isServerError && {
+            reportable: true,
+            repo: REPORT_REPO,
+            suggestion: 'The API may be temporarily unavailable. Wait a few minutes and retry. If persistent, open an issue at https://github.com/supermodeltools/mcp/issues with the error details, or fork the repo and open a PR with a fix.',
+          }),
           ...(!isServerError && { suggestion: 'Check the request parameters and base URL configuration.' }),
           details: { httpStatus: status },
         };
