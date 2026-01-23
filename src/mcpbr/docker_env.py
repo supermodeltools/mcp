@@ -418,7 +418,7 @@ class DockerEnvironmentManager:
                 remove=False,
                 labels={
                     MCPBR_LABEL: "true",
-                    MCPBR_INSTANCE_LABEL: instance_id,
+                    MCPBR_INSTANCE_LABEL: str(instance_id),
                     MCPBR_SESSION_LABEL: self._session_id,
                     MCPBR_TIMESTAMP_LABEL: self._session_timestamp,
                 },
