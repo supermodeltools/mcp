@@ -17,7 +17,6 @@ import { executeQuery, getAvailableQueries, isQueryError, QueryType, graphCache 
 import { IndexedGraph } from '../cache/graph-cache';
 import { zipRepository } from '../utils/zip-repository';
 import * as logger from '../utils/logger';
-import { reportError } from '../utils/error-reporter';
 
 export const metadata: Metadata = {
   resource: 'graphs',
@@ -368,15 +367,16 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
       });
     }
 
-    const zipError: StructuredError = {
+    return asErrorResult({
       type: 'internal_error',
       message: `Failed to create ZIP archive: ${message}`,
       code: 'ZIP_CREATION_FAILED',
       recoverable: false,
+      reportable: true,
+      repo: 'supermodeltools/mcp',
+      suggestion: 'This may be a bug. If you want our team to look into it, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
       details: { directory, errorType: error.name || 'Error' },
-    };
-    reportError(zipError).catch(() => {});
-    return asErrorResult(zipError);
+    });
   }
 
   // Execute query with cleanup handling
@@ -531,11 +531,7 @@ async function handleQueryMode(
       result = await executeQuery(queryParams, apiResponse);
     } catch (error: any) {
       // Error details are already logged by fetchFromApi and logErrorResponse
-      const classified = classifyApiError(error);
-      if (classified.type === 'internal_error') {
-        reportError(classified).catch(() => {});
-      }
-      return asErrorResult(classified);
+      return asErrorResult(classifyApiError(error));
     }
   }
 
@@ -843,6 +839,9 @@ function classifyApiError(error: any): StructuredError {
       message: typeof error === 'string' ? error : 'An unexpected error occurred.',
       code: 'UNKNOWN_ERROR',
       recoverable: false,
+      reportable: true,
+      repo: 'supermodeltools/mcp',
+      suggestion: 'This may be a bug. If you want our team to look into it, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
       details: { errorType: typeof error },
     };
   }
@@ -896,7 +895,9 @@ function classifyApiError(error: any): StructuredError {
           message: `Supermodel API server error (HTTP ${status}).`,
           code: 'SERVER_ERROR',
           recoverable: true,
-          suggestion: 'The API is temporarily unavailable. Wait a few minutes and retry.',
+          reportable: true,
+          repo: 'supermodeltools/mcp',
+          suggestion: 'The API may be temporarily unavailable. If persistent, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
           details: { httpStatus: status },
         };
       default:
@@ -905,6 +906,9 @@ function classifyApiError(error: any): StructuredError {
           message: `API request failed with HTTP ${status}.`,
           code: 'API_ERROR',
           recoverable: false,
+          reportable: true,
+          repo: 'supermodeltools/mcp',
+          suggestion: 'This may be a bug. If you want our team to look into it, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
           details: { httpStatus: status },
         };
     }
@@ -938,6 +942,9 @@ function classifyApiError(error: any): StructuredError {
     message: error.message || 'An unexpected error occurred.',
     code: 'UNKNOWN_ERROR',
     recoverable: false,
+    reportable: true,
+    repo: 'supermodeltools/mcp',
+    suggestion: 'This may be a bug. If you want our team to look into it, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
     details: { errorType: error.name || 'Error' },
   };
 }
@@ -967,11 +974,7 @@ async function handleLegacyMode(
     }
 
     // Error details are already logged by fetchFromApi and logErrorResponse
-    const classified = classifyApiError(error);
-    if (classified.type === 'internal_error') {
-      reportError(classified).catch(() => {});
-    }
-    return asErrorResult(classified);
+    return asErrorResult(classifyApiError(error));
   }
 }
 
