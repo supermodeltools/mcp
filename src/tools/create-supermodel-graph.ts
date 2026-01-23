@@ -719,7 +719,7 @@ async function logErrorResponse(error: any): Promise<void> {
 }
 
 /**
- * Fetch graph from API with comprehensive logging
+ * Fetch graph from API with comprehensive logging and progress updates
  */
 async function fetchFromApi(client: ClientContext, file: string, idempotencyKey: string): Promise<any> {
   const startTime = Date.now();
@@ -743,19 +743,52 @@ async function fetchFromApi(client: ClientContext, file: string, idempotencyKey:
     idempotencyKey: idempotencyKey,
   };
 
+  // Start progress logging
+  console.error('[Supermodel] Starting codebase analysis...');
+
+  // Set up periodic progress updates every 15 seconds
+  let progressInterval: NodeJS.Timeout | null = null;
+  let elapsedSeconds = 0;
+
+  progressInterval = setInterval(() => {
+    elapsedSeconds += 15;
+    console.error(`[Supermodel] Analysis in progress... (${elapsedSeconds}s elapsed)`);
+  }, 15000);
+
   try {
     const response = await client.graphs.generateSupermodelGraph(requestParams);
     const duration = Date.now() - startTime;
 
+    // Clear progress interval
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+
     // Calculate approximate response size
     const responseSize = JSON.stringify(response).length;
     logResponse(200, 'OK', responseSize, duration);
+
+    // Log completion with summary
+    const summary = response.summary;
+    if (summary) {
+      console.error(`[Supermodel] Analysis complete, retrieving results... (${summary.filesProcessed || 0} files processed)`);
+    } else {
+      console.error('[Supermodel] Analysis complete, retrieving results...');
+    }
 
     logger.debug(`[${getTimestamp()}] [API SUCCESS] Request completed successfully`);
 
     return response;
   } catch (error: any) {
     const duration = Date.now() - startTime;
+
+    // Clear progress interval on error
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+
     logger.error(`[${getTimestamp()}] [API FAILURE] Request failed after ${duration}ms`);
 
     // Log detailed error information
