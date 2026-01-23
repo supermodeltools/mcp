@@ -8,6 +8,26 @@ MCP server that provides deep codebase analysis to AI agents via the [Supermodel
 
 ## Install
 
+### Quick Setup (Recommended)
+
+Run the setup script to configure the recommended timeout settings:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/supermodeltools/mcp/main/setup.sh | bash
+```
+
+Or clone the repo and run locally:
+
+```bash
+git clone https://github.com/supermodeltools/mcp.git
+cd mcp
+./setup.sh
+```
+
+This will configure `MCP_TOOL_TIMEOUT=900000` for optimal performance with large codebases.
+
+### Manual Install
+
 ```bash
 npm install -g @supermodeltools/mcp-server
 ```
