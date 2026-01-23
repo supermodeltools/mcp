@@ -17,6 +17,7 @@ import { executeQuery, getAvailableQueries, isQueryError, QueryType, graphCache 
 import { IndexedGraph } from '../cache/graph-cache';
 import { zipRepository } from '../utils/zip-repository';
 import * as logger from '../utils/logger';
+import { reportError } from '../utils/error-reporter';
 
 export const metadata: Metadata = {
   resource: 'graphs',
@@ -367,13 +368,15 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
       });
     }
 
-    return asErrorResult({
+    const zipError: StructuredError = {
       type: 'internal_error',
       message: `Failed to create ZIP archive: ${message}`,
       code: 'ZIP_CREATION_FAILED',
       recoverable: false,
       details: { directory, errorType: error.name || 'Error' },
-    });
+    };
+    reportError(zipError).catch(() => {});
+    return asErrorResult(zipError);
   }
 
   // Execute query with cleanup handling
@@ -528,7 +531,11 @@ async function handleQueryMode(
       result = await executeQuery(queryParams, apiResponse);
     } catch (error: any) {
       // Error details are already logged by fetchFromApi and logErrorResponse
-      return asErrorResult(classifyApiError(error));
+      const classified = classifyApiError(error);
+      if (classified.type === 'internal_error') {
+        reportError(classified).catch(() => {});
+      }
+      return asErrorResult(classified);
     }
   }
 
@@ -960,7 +967,11 @@ async function handleLegacyMode(
     }
 
     // Error details are already logged by fetchFromApi and logErrorResponse
-    return asErrorResult(classifyApiError(error));
+    const classified = classifyApiError(error);
+    if (classified.type === 'internal_error') {
+      reportError(classified).catch(() => {});
+    }
+    return asErrorResult(classified);
   }
 }
 
