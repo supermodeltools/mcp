@@ -18,7 +18,7 @@ import { IndexedGraph } from '../cache/graph-cache';
 import { zipRepository } from '../utils/zip-repository';
 import * as logger from '../utils/logger';
 
-const REPORT_REPO = 'supermodeltools/mcp';
+const REPORT_REPO = 'https://github.com/supermodeltools/mcp.git';
 const REPORT_SUGGESTION = 'This may be a bug in the MCP server. You can help by opening an issue at https://github.com/supermodeltools/mcp/issues with the error details, or fork the repo and open a PR with a fix.';
 
 export const metadata: Metadata = {

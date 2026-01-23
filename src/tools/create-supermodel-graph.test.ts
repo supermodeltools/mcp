@@ -218,7 +218,7 @@ describe('create-supermodel-graph', () => {
         expect(result.type).toBe('internal_error');
         expect(result.code).toBe('UNKNOWN_ERROR');
         expect(result.reportable).toBe(true);
-        expect(result.repo).toBe('supermodeltools/mcp');
+        expect(result.repo).toBe('https://github.com/supermodeltools/mcp.git');
         expect(result.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
       });
 
@@ -227,7 +227,7 @@ describe('create-supermodel-graph', () => {
         expect(result.type).toBe('internal_error');
         expect(result.code).toBe('UNKNOWN_ERROR');
         expect(result.reportable).toBe(true);
-        expect(result.repo).toBe('supermodeltools/mcp');
+        expect(result.repo).toBe('https://github.com/supermodeltools/mcp.git');
         expect(result.suggestion).toBeDefined();
       });
 
@@ -236,7 +236,7 @@ describe('create-supermodel-graph', () => {
         expect(result.type).toBe('internal_error');
         expect(result.code).toBe('SERVER_ERROR');
         expect(result.reportable).toBe(true);
-        expect(result.repo).toBe('supermodeltools/mcp');
+        expect(result.repo).toBe('https://github.com/supermodeltools/mcp.git');
         expect(result.suggestion).toContain('Wait a few minutes and retry');
         expect(result.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
       });
@@ -246,7 +246,7 @@ describe('create-supermodel-graph', () => {
           const result = classifyApiError({ response: { status } });
           expect(result.code).toBe('SERVER_ERROR');
           expect(result.reportable).toBe(true);
-          expect(result.repo).toBe('supermodeltools/mcp');
+          expect(result.repo).toBe('https://github.com/supermodeltools/mcp.git');
         }
       });
 
@@ -255,7 +255,7 @@ describe('create-supermodel-graph', () => {
         expect(result.type).toBe('internal_error');
         expect(result.code).toBe('API_ERROR');
         expect(result.reportable).toBe(true);
-        expect(result.repo).toBe('supermodeltools/mcp');
+        expect(result.repo).toBe('https://github.com/supermodeltools/mcp.git');
         expect(result.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
       });
 
