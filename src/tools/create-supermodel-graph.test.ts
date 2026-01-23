@@ -1,5 +1,5 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { handler } from './create-supermodel-graph';
+import { handler, classifyApiError } from './create-supermodel-graph';
 import { ClientContext } from '../types';
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';
@@ -187,6 +187,94 @@ describe('create-supermodel-graph', () => {
       expect(validQueries).toContain('summary');
       expect(validQueries).toContain('get_node');
       expect(validQueries).toContain('search');
+    });
+  });
+
+  describe('reportable error metadata', () => {
+    describe('internal errors include reportable fields', () => {
+      it('should mark UNKNOWN_ERROR (non-object) as reportable with repo and suggestion', () => {
+        const result = classifyApiError(null);
+        expect(result.type).toBe('internal_error');
+        expect(result.code).toBe('UNKNOWN_ERROR');
+        expect(result.reportable).toBe(true);
+        expect(result.repo).toBe('supermodeltools/mcp');
+        expect(result.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
+      });
+
+      it('should mark UNKNOWN_ERROR (object with message) as reportable', () => {
+        const result = classifyApiError(new Error('something broke'));
+        expect(result.type).toBe('internal_error');
+        expect(result.code).toBe('UNKNOWN_ERROR');
+        expect(result.reportable).toBe(true);
+        expect(result.repo).toBe('supermodeltools/mcp');
+        expect(result.suggestion).toBeDefined();
+      });
+
+      it('should mark SERVER_ERROR (5xx) as reportable with retry advice', () => {
+        const result = classifyApiError({ response: { status: 500 } });
+        expect(result.type).toBe('internal_error');
+        expect(result.code).toBe('SERVER_ERROR');
+        expect(result.reportable).toBe(true);
+        expect(result.repo).toBe('supermodeltools/mcp');
+        expect(result.suggestion).toContain('Wait a few minutes and retry');
+        expect(result.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
+      });
+
+      it('should mark SERVER_ERROR for 502/503/504 as reportable', () => {
+        for (const status of [502, 503, 504]) {
+          const result = classifyApiError({ response: { status } });
+          expect(result.code).toBe('SERVER_ERROR');
+          expect(result.reportable).toBe(true);
+          expect(result.repo).toBe('supermodeltools/mcp');
+        }
+      });
+
+      it('should mark API_ERROR (unexpected HTTP status) as reportable', () => {
+        const result = classifyApiError({ response: { status: 418 } });
+        expect(result.type).toBe('internal_error');
+        expect(result.code).toBe('API_ERROR');
+        expect(result.reportable).toBe(true);
+        expect(result.repo).toBe('supermodeltools/mcp');
+        expect(result.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
+      });
+    });
+
+    describe('client errors do NOT include reportable flag', () => {
+      it('should not mark authentication_error as reportable', () => {
+        const result = classifyApiError({ response: { status: 401 } });
+        expect(result.type).toBe('authentication_error');
+        expect(result.reportable).toBeUndefined();
+      });
+
+      it('should not mark authorization_error as reportable', () => {
+        const result = classifyApiError({ response: { status: 403 } });
+        expect(result.type).toBe('authorization_error');
+        expect(result.reportable).toBeUndefined();
+      });
+
+      it('should not mark not_found_error as reportable', () => {
+        const result = classifyApiError({ response: { status: 404 } });
+        expect(result.type).toBe('not_found_error');
+        expect(result.reportable).toBeUndefined();
+      });
+
+      it('should not mark rate_limit_error as reportable', () => {
+        const result = classifyApiError({ response: { status: 429 } });
+        expect(result.type).toBe('rate_limit_error');
+        expect(result.reportable).toBeUndefined();
+      });
+
+      it('should not mark timeout_error as reportable', () => {
+        const result = classifyApiError({ request: {}, code: 'UND_ERR_HEADERS_TIMEOUT' });
+        expect(result.type).toBe('timeout_error');
+        expect(result.reportable).toBeUndefined();
+      });
+
+      it('should not mark network_error as reportable', () => {
+        const result = classifyApiError({ request: {} });
+        expect(result.type).toBe('network_error');
+        expect(result.reportable).toBeUndefined();
+      });
     });
   });
 

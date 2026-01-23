@@ -831,7 +831,7 @@ async function fetchFromApi(client: ClientContext, file: string, idempotencyKey:
  * Extracts HTTP status, network conditions, and timeout signals
  * to produce an agent-actionable error with recovery guidance.
  */
-function classifyApiError(error: any): StructuredError {
+export function classifyApiError(error: any): StructuredError {
   // Guard against non-Error throws (strings, nulls, plain objects)
   if (!error || typeof error !== 'object') {
     return {
@@ -897,7 +897,7 @@ function classifyApiError(error: any): StructuredError {
           recoverable: true,
           reportable: true,
           repo: 'supermodeltools/mcp',
-          suggestion: 'The API may be temporarily unavailable. If persistent, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
+          suggestion: 'The API is temporarily unavailable. Wait a few minutes and retry. If the error persists, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
           details: { httpStatus: status },
         };
       default:
