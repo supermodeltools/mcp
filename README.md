@@ -200,9 +200,9 @@ Analyzes code structure, dependencies, and relationships across a repository. Us
 
 ### Timeout Errors
 
-#### "Request timeout after 60 seconds"
+#### "Request timeout"
 
-**Cause:** The analysis is taking longer than the default MCP client timeout (typically 60 seconds). Large repositories or complex codebases may require more time to analyze.
+**Cause:** The analysis is taking longer than your MCP client's timeout allows (varies by client—Claude Code CLI defaults to ~2 minutes, Claude Desktop enforces 5 minutes). Large repositories or complex codebases may require more time to analyze.
 
 **Solutions:**
 
@@ -231,7 +231,7 @@ Analyzes code structure, dependencies, and relationships across a repository. Us
    - `dist/`, `build/`, `out/`
    - `.next/`, `.nuxt/`, `.cache/`
 
-   These are automatically excluded by the MCP server, but large repos may still hit timeouts.
+   The MCP server automatically excludes these patterns when zipping, but `.gitignore` prevents them from being in your working directory in the first place—both improve performance and reduce analysis size.
 
 #### "Analysis interrupted mid-way"
 
@@ -240,6 +240,8 @@ Analyzes code structure, dependencies, and relationships across a repository. Us
 **Solutions:**
 
 1. **Check MCP server logs** - Logs location varies by client:
+
+   > **Note:** Log filenames match your MCP server name from the config. If you named it differently (e.g., `my-server`), look for `mcp-server-my-server.log` instead of `mcp-server-supermodel.log`.
 
    **Claude Desktop (macOS):**
    ```bash
@@ -281,7 +283,7 @@ Analyzes code structure, dependencies, and relationships across a repository. Us
 
 **Multiple possible causes:**
 
-**1. Missing or invalid API key**
+##### 1. Missing or invalid API key
 
 Check if your API key is set:
 ```bash
@@ -299,7 +301,7 @@ source ~/.zshrc
 # Or update your MCP client config with the correct key
 ```
 
-**2. API service outage or rate limiting**
+##### 2. API service outage or rate limiting
 
 Check the error details in logs (see log locations above).
 
@@ -308,9 +310,9 @@ Check the error details in logs (see log locations above).
 - If rate limited, wait a few minutes before retrying
 - Consider upgrading your API plan if hitting rate limits frequently
 
-**3. Repository too large**
+##### 3. Repository too large
 
-The API has size limits for analysis (typically 100MB compressed).
+The API has size limits for analysis. Check the [Supermodel documentation](https://docs.supermodeltools.com) for current limits.
 
 **Solution:**
 ```bash
@@ -321,7 +323,7 @@ du -sh /path/to/repo
 explore_codebase(directory="/path/to/repo/src")
 ```
 
-**4. Network or firewall issues**
+##### 4. Network or firewall issues
 
 Corporate firewalls may block outbound requests to the Supermodel API.
 
