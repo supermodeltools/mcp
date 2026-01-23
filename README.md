@@ -1089,6 +1089,30 @@ pytest
 ruff check src/
 ```
 
+### Creating Releases
+
+We use an automated workflow for releases. See the **[Release Guide](docs/RELEASE.md)** for full details.
+
+**Quick start for maintainers:**
+```bash
+# Patch release (bug fixes) - most common
+gh workflow run release.yml -f version_bump=patch
+
+# Minor release (new features)
+gh workflow run release.yml -f version_bump=minor
+
+# Major release (breaking changes)
+gh workflow run release.yml -f version_bump=major
+```
+
+**For AI agents:** See the **[AI Agent Guide](docs/AI_AGENT_GUIDE.md)** for a quick reference.
+
+The workflow automatically:
+- Bumps version in `pyproject.toml`
+- Syncs version to all package files
+- Creates git tag and GitHub release
+- Triggers PyPI and npm publication
+
 ## Roadmap
 
 We're building the defacto standard for MCP server benchmarking! Our [v1.0 Roadmap](https://github.com/greynewell/mcpbr/projects/2) includes 200+ features across 11 strategic categories:
