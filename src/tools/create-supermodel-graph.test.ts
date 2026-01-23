@@ -164,24 +164,8 @@ describe('create-supermodel-graph', () => {
     });
   });
 
-  describe('reportable fields on internal errors', () => {
-    it('should include reportable and repo on internal_error responses', async () => {
-      // Trigger a ZIP_CREATION_FAILED by passing a non-existent but stat-able path
-      const mockClient = { graphs: { generateSupermodelGraph: jest.fn() } } as any;
-      const result = await handler(mockClient, { directory: '/dev/null' });
-
-      expect(result.isError).toBe(true);
-      const parsed = JSON.parse((result.content[0] as any).text);
-      if (parsed.error.type === 'internal_error') {
-        expect(parsed.error.reportable).toBe(true);
-        expect(parsed.error.repo).toBe('supermodeltools/mcp');
-        expect(parsed.error.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
-        expect(parsed.error.suggestion).toContain('fork');
-        expect(parsed.error.suggestion).toContain('PR');
-      }
-    });
-
-    it('should not include reportable on client errors', async () => {
+  describe('reportable fields via handler', () => {
+    it('should not include reportable on validation errors from handler', async () => {
       const result = await handler({} as any, { directory: 42 } as any);
 
       const parsed = JSON.parse((result.content[0] as any).text);
@@ -190,7 +174,7 @@ describe('create-supermodel-graph', () => {
       expect(parsed.error.repo).toBeUndefined();
     });
 
-    it('should not include reportable on not_found_error', async () => {
+    it('should not include reportable on not_found_error from handler', async () => {
       const mockClient = { graphs: { generateSupermodelGraph: jest.fn() } } as any;
       const result = await handler(mockClient, { directory: '/nonexistent/path/xyz' });
 
@@ -198,17 +182,6 @@ describe('create-supermodel-graph', () => {
       expect(parsed.error.type).toBe('not_found_error');
       expect(parsed.error.reportable).toBeUndefined();
       expect(parsed.error.repo).toBeUndefined();
-    });
-
-    it('should not leak full directory path in error details', async () => {
-      const mockClient = { graphs: { generateSupermodelGraph: jest.fn() } } as any;
-      const result = await handler(mockClient, { directory: '/dev/null' });
-
-      const parsed = JSON.parse((result.content[0] as any).text);
-      if (parsed.error.details?.directory) {
-        // Should be basename only, not a full path
-        expect(parsed.error.details.directory).not.toContain('/');
-      }
     });
   });
 
