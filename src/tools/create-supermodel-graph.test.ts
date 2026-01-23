@@ -164,6 +164,54 @@ describe('create-supermodel-graph', () => {
     });
   });
 
+  describe('reportable fields on internal errors', () => {
+    it('should include reportable and repo on internal_error responses', async () => {
+      // Trigger a ZIP_CREATION_FAILED by passing a non-existent but stat-able path
+      const mockClient = { graphs: { generateSupermodelGraph: jest.fn() } } as any;
+      const result = await handler(mockClient, { directory: '/dev/null' });
+
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse((result.content[0] as any).text);
+      if (parsed.error.type === 'internal_error') {
+        expect(parsed.error.reportable).toBe(true);
+        expect(parsed.error.repo).toBe('supermodeltools/mcp');
+        expect(parsed.error.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
+        expect(parsed.error.suggestion).toContain('fork');
+        expect(parsed.error.suggestion).toContain('PR');
+      }
+    });
+
+    it('should not include reportable on client errors', async () => {
+      const result = await handler({} as any, { directory: 42 } as any);
+
+      const parsed = JSON.parse((result.content[0] as any).text);
+      expect(parsed.error.type).toBe('validation_error');
+      expect(parsed.error.reportable).toBeUndefined();
+      expect(parsed.error.repo).toBeUndefined();
+    });
+
+    it('should not include reportable on not_found_error', async () => {
+      const mockClient = { graphs: { generateSupermodelGraph: jest.fn() } } as any;
+      const result = await handler(mockClient, { directory: '/nonexistent/path/xyz' });
+
+      const parsed = JSON.parse((result.content[0] as any).text);
+      expect(parsed.error.type).toBe('not_found_error');
+      expect(parsed.error.reportable).toBeUndefined();
+      expect(parsed.error.repo).toBeUndefined();
+    });
+
+    it('should not leak full directory path in error details', async () => {
+      const mockClient = { graphs: { generateSupermodelGraph: jest.fn() } } as any;
+      const result = await handler(mockClient, { directory: '/dev/null' });
+
+      const parsed = JSON.parse((result.content[0] as any).text);
+      if (parsed.error.details?.directory) {
+        // Should be basename only, not a full path
+        expect(parsed.error.details.directory).not.toContain('/');
+      }
+    });
+  });
+
   describe('query parameter types', () => {
     it('should accept all valid query types in the enum', () => {
       const validQueries = [
@@ -229,13 +277,20 @@ describe('create-supermodel-graph', () => {
         }
       });
 
-      it('should mark API_ERROR (unexpected HTTP status) as reportable', () => {
-        const result = classifyApiError({ response: { status: 418 } });
+      it('should mark API_ERROR (unhandled 5xx) as reportable', () => {
+        const result = classifyApiError({ response: { status: 507 } });
         expect(result.type).toBe('internal_error');
         expect(result.code).toBe('API_ERROR');
         expect(result.reportable).toBe(true);
         expect(result.repo).toBe('supermodeltools/mcp');
         expect(result.suggestion).toContain('https://github.com/supermodeltools/mcp/issues');
+      });
+
+      it('should not mark 4xx API_ERROR as reportable', () => {
+        const result = classifyApiError({ response: { status: 418 } });
+        expect(result.type).toBe('validation_error');
+        expect(result.code).toBe('API_ERROR');
+        expect(result.reportable).toBeUndefined();
       });
     });
 

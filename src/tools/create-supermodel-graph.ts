@@ -18,6 +18,9 @@ import { IndexedGraph } from '../cache/graph-cache';
 import { zipRepository } from '../utils/zip-repository';
 import * as logger from '../utils/logger';
 
+const REPORT_REPO = 'supermodeltools/mcp';
+const REPORT_SUGGESTION = 'This may be a bug in the MCP server. You can help by opening an issue at https://github.com/supermodeltools/mcp/issues with the error details, or fork the repo and open a PR with a fix.';
+
 export const metadata: Metadata = {
   resource: 'graphs',
   operation: 'write',
@@ -373,9 +376,9 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
       code: 'ZIP_CREATION_FAILED',
       recoverable: false,
       reportable: true,
-      repo: 'supermodeltools/mcp',
-      suggestion: 'This may be a bug. If you want our team to look into it, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
-      details: { directory, errorType: error.name || 'Error' },
+      repo: REPORT_REPO,
+      suggestion: REPORT_SUGGESTION,
+      details: { directory: basename(directory), errorType: error.name || 'Error' },
     });
   }
 
@@ -840,8 +843,8 @@ export function classifyApiError(error: any): StructuredError {
       code: 'UNKNOWN_ERROR',
       recoverable: false,
       reportable: true,
-      repo: 'supermodeltools/mcp',
-      suggestion: 'This may be a bug. If you want our team to look into it, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
+      repo: REPORT_REPO,
+      suggestion: REPORT_SUGGESTION,
       details: { errorType: typeof error },
     };
   }
@@ -896,21 +899,22 @@ export function classifyApiError(error: any): StructuredError {
           code: 'SERVER_ERROR',
           recoverable: true,
           reportable: true,
-          repo: 'supermodeltools/mcp',
-          suggestion: 'The API is temporarily unavailable. Wait a few minutes and retry. If the error persists, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
+          repo: REPORT_REPO,
+          suggestion: 'The API may be temporarily unavailable. Wait a few minutes and retry. If persistent, open an issue at https://github.com/supermodeltools/mcp/issues with the error details, or fork the repo and open a PR with a fix.',
           details: { httpStatus: status },
         };
-      default:
+      default: {
+        const isServerError = status >= 500;
         return {
-          type: 'internal_error',
+          type: isServerError ? 'internal_error' : 'validation_error',
           message: `API request failed with HTTP ${status}.`,
           code: 'API_ERROR',
           recoverable: false,
-          reportable: true,
-          repo: 'supermodeltools/mcp',
-          suggestion: 'This may be a bug. If you want our team to look into it, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
+          ...(isServerError && { reportable: true, repo: REPORT_REPO, suggestion: REPORT_SUGGESTION }),
+          ...(!isServerError && { suggestion: 'Check the request parameters and base URL configuration.' }),
           details: { httpStatus: status },
         };
+      }
     }
   }
 
@@ -943,8 +947,8 @@ export function classifyApiError(error: any): StructuredError {
     code: 'UNKNOWN_ERROR',
     recoverable: false,
     reportable: true,
-    repo: 'supermodeltools/mcp',
-    suggestion: 'This may be a bug. If you want our team to look into it, open an issue at https://github.com/supermodeltools/mcp/issues with the error details.',
+    repo: REPORT_REPO,
+    suggestion: REPORT_SUGGESTION,
     details: { errorType: error.name || 'Error' },
   };
 }
