@@ -9,7 +9,8 @@ import {
   HandlerFunction,
   asTextContentResult,
   asErrorResult,
-  ClientContext
+  ClientContext,
+  StructuredError
 } from '../types';
 import { maybeFilter, isJqError } from '../filtering';
 import { executeQuery, getAvailableQueries, isQueryError, QueryType, graphCache } from '../queries';
@@ -243,13 +244,25 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   // Validate directory - check if explicitly invalid first
   if (providedDirectory !== undefined && typeof providedDirectory !== 'string') {
     logger.error('Invalid directory parameter:', providedDirectory);
-    return asErrorResult('Invalid "directory" parameter. Provide a valid directory path as a string.');
+    return asErrorResult({
+      type: 'validation_error',
+      message: 'Invalid "directory" parameter. Provide a valid directory path as a string.',
+      code: 'INVALID_DIRECTORY',
+      recoverable: false,
+      suggestion: 'Pass directory as a string path, e.g. directory="/workspace/my-repo"',
+    });
   }
 
   // Check if we have any directory at all
   if (!directory || typeof directory !== 'string') {
     logger.error('Invalid directory parameter:', directory);
-    return asErrorResult('No "directory" parameter provided and no default workdir configured. Please provide a directory path or start the server with a workdir argument.');
+    return asErrorResult({
+      type: 'validation_error',
+      message: 'No "directory" parameter provided and no default workdir configured.',
+      code: 'MISSING_DIRECTORY',
+      recoverable: false,
+      suggestion: 'Provide a directory path or start the MCP server with a workdir argument (e.g. npx @anthropic-ai/supermodel-mcp /path/to/repo).',
+    });
   }
 
   if (providedDirectory) {
@@ -310,21 +323,57 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
       logger.error('Stack trace:', error.stack);
     }
 
-    // Return user-friendly, actionable error messages
-    if (error.message.includes('does not exist')) {
-      return asErrorResult(`Directory not found. Please verify the path exists: ${directory}`);
+    // Normalize: guard against non-Error throws (string, object, undefined)
+    const message = typeof error?.message === 'string' ? error.message : String(error);
+
+    // Return structured, actionable error messages
+    if (message.includes('does not exist')) {
+      return asErrorResult({
+        type: 'not_found_error',
+        message: `Directory not found: ${directory}`,
+        code: 'DIRECTORY_NOT_FOUND',
+        recoverable: false,
+        suggestion: 'Verify the path exists. Use an absolute path to the repository root or subdirectory.',
+        details: { directory },
+      });
     }
-    if (error.message.includes('Permission denied')) {
-      return asErrorResult(`Permission denied. Check that you have read access to: ${directory}`);
+    if (message.includes('Permission denied')) {
+      return asErrorResult({
+        type: 'resource_error',
+        message: `Permission denied accessing directory: ${directory}`,
+        code: 'PERMISSION_DENIED',
+        recoverable: false,
+        suggestion: 'Check that the MCP server process has read access to this directory.',
+        details: { directory },
+      });
     }
-    if (error.message.includes('exceeds limit')) {
-      return asErrorResult(error.message + '\n\nTry analyzing a subdirectory or excluding more files.');
+    if (message.includes('exceeds limit')) {
+      return asErrorResult({
+        type: 'resource_error',
+        message,
+        code: 'ZIP_TOO_LARGE',
+        recoverable: true,
+        suggestion: 'Analyze a subdirectory instead of the full repository (e.g. directory="/repo/src/core"). This reduces ZIP size and processing time.',
+        details: { directory },
+      });
     }
-    if (error.message.includes('ENOSPC')) {
-      return asErrorResult('Insufficient disk space. Free up space and try again.');
+    if (message.includes('ENOSPC')) {
+      return asErrorResult({
+        type: 'resource_error',
+        message: 'Insufficient disk space to create ZIP archive.',
+        code: 'DISK_FULL',
+        recoverable: false,
+        suggestion: 'Free up disk space or analyze a smaller subdirectory.',
+      });
     }
 
-    return asErrorResult(`Failed to create ZIP archive. Check the MCP server logs for details.`);
+    return asErrorResult({
+      type: 'internal_error',
+      message: `Failed to create ZIP archive: ${message}`,
+      code: 'ZIP_CREATION_FAILED',
+      recoverable: false,
+      details: { directory, errorType: error.name || 'Error' },
+    });
   }
 
   // Execute query with cleanup handling
@@ -479,42 +528,7 @@ async function handleQueryMode(
       result = await executeQuery(queryParams, apiResponse);
     } catch (error: any) {
       // Error details are already logged by fetchFromApi and logErrorResponse
-      // Return a user-friendly, actionable error message
-
-      let errorMessage = '';
-
-      if (error.response) {
-        const status = error.response.status;
-
-        switch (status) {
-          case 401:
-            errorMessage = 'Authentication failed. Set your SUPERMODEL_API_KEY environment variable and restart the MCP server.';
-            break;
-          case 403:
-            errorMessage = 'Access forbidden. Your API key does not have permission for this operation. Contact support if this is unexpected.';
-            break;
-          case 404:
-            errorMessage = 'API endpoint not found. The service URL may be incorrect. Check your SUPERMODEL_BASE_URL configuration.';
-            break;
-          case 429:
-            errorMessage = 'Rate limit exceeded. Wait a few minutes and try again.';
-            break;
-          case 500:
-          case 502:
-          case 503:
-          case 504:
-            errorMessage = 'Server error. The Supermodel API is temporarily unavailable. Try again in a few minutes.';
-            break;
-          default:
-            errorMessage = `API error (HTTP ${status}). Check the MCP server logs for details.`;
-        }
-      } else if (error.request) {
-        errorMessage = 'No response from server. Check your network connection and verify the API is reachable.';
-      } else {
-        errorMessage = 'Request failed. Check the MCP server logs for details.';
-      }
-
-      return asErrorResult(errorMessage);
+      return asErrorResult(classifyApiError(error));
     }
   }
 
@@ -796,17 +810,129 @@ async function fetchFromApi(client: ClientContext, file: string, idempotencyKey:
     // Log detailed error information
     await logErrorResponse(error);
 
-    // Re-throw with enhanced error message
+    // Preserve error.response so classifyApiError can read the status code (#75)
     if (error.response?.status === 401) {
-      throw new Error(`API authentication failed (401 Unauthorized). Please check your SUPERMODEL_API_KEY environment variable.`);
+      error.message = 'API authentication failed (401 Unauthorized). Please check your SUPERMODEL_API_KEY environment variable.';
     } else if (error.response?.status === 403) {
-      throw new Error(`API access forbidden (403 Forbidden). Your API key may not have permission to access this resource.`);
+      error.message = 'API access forbidden (403 Forbidden). Your API key may not have permission to access this resource.';
     } else if (error.response?.status >= 500) {
-      throw new Error(`Supermodel API server error (${error.response.status}). The service may be temporarily unavailable.`);
+      error.message = `Supermodel API server error (${error.response.status}). The service may be temporarily unavailable.`;
     }
 
     throw error;
   }
+}
+
+/**
+ * Classify an API error into a structured error response.
+ * Extracts HTTP status, network conditions, and timeout signals
+ * to produce an agent-actionable error with recovery guidance.
+ */
+function classifyApiError(error: any): StructuredError {
+  // Guard against non-Error throws (strings, nulls, plain objects)
+  if (!error || typeof error !== 'object') {
+    return {
+      type: 'internal_error',
+      message: typeof error === 'string' ? error : 'An unexpected error occurred.',
+      code: 'UNKNOWN_ERROR',
+      recoverable: false,
+      details: { errorType: typeof error },
+    };
+  }
+
+  if (error.response) {
+    const status = error.response.status;
+
+    switch (status) {
+      case 401:
+        return {
+          type: 'authentication_error',
+          message: 'Invalid or missing API key.',
+          code: 'INVALID_API_KEY',
+          recoverable: false,
+          suggestion: 'Set the SUPERMODEL_API_KEY environment variable and restart the MCP server.',
+          details: { apiKeySet: !!process.env.SUPERMODEL_API_KEY, httpStatus: 401 },
+        };
+      case 403:
+        return {
+          type: 'authorization_error',
+          message: 'API key does not have permission for this operation.',
+          code: 'FORBIDDEN',
+          recoverable: false,
+          suggestion: 'Verify your API key has the correct permissions. Contact support if unexpected.',
+          details: { httpStatus: 403 },
+        };
+      case 404:
+        return {
+          type: 'not_found_error',
+          message: 'API endpoint not found.',
+          code: 'ENDPOINT_NOT_FOUND',
+          recoverable: false,
+          suggestion: 'Check SUPERMODEL_BASE_URL environment variable. Default: https://api.supermodeltools.com',
+          details: { baseUrl: process.env.SUPERMODEL_BASE_URL || 'https://api.supermodeltools.com', httpStatus: 404 },
+        };
+      case 429:
+        return {
+          type: 'rate_limit_error',
+          message: 'API rate limit exceeded.',
+          code: 'RATE_LIMITED',
+          recoverable: true,
+          suggestion: 'Wait 30-60 seconds and retry. Consider analyzing smaller subdirectories to reduce API calls.',
+          details: { httpStatus: 429 },
+        };
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        return {
+          type: 'internal_error',
+          message: `Supermodel API server error (HTTP ${status}).`,
+          code: 'SERVER_ERROR',
+          recoverable: true,
+          suggestion: 'The API is temporarily unavailable. Wait a few minutes and retry.',
+          details: { httpStatus: status },
+        };
+      default:
+        return {
+          type: 'internal_error',
+          message: `API request failed with HTTP ${status}.`,
+          code: 'API_ERROR',
+          recoverable: false,
+          details: { httpStatus: status },
+        };
+    }
+  }
+
+  if (error.request) {
+    // Distinguish timeout from general network failure
+    if (error.code === 'UND_ERR_HEADERS_TIMEOUT' || error.code === 'UND_ERR_BODY_TIMEOUT' || error.message?.includes('timeout')) {
+      return {
+        type: 'timeout_error',
+        message: 'API request timed out. The codebase may be too large for a single analysis.',
+        code: 'REQUEST_TIMEOUT',
+        recoverable: true,
+        suggestion: 'Analyze a smaller subdirectory (e.g. directory="/repo/src/core") or increase SUPERMODEL_TIMEOUT_MS.',
+      };
+    }
+
+    return {
+      type: 'network_error',
+      message: 'No response from Supermodel API server.',
+      code: 'NO_RESPONSE',
+      recoverable: true,
+      suggestion: 'Check network connectivity. Verify the API is reachable at the configured base URL.',
+      details: { baseUrl: process.env.SUPERMODEL_BASE_URL || 'https://api.supermodeltools.com' },
+    };
+  }
+
+  // Catch-all for unexpected errors - include the actual message
+  return {
+    type: 'internal_error',
+    message: error.message || 'An unexpected error occurred.',
+    code: 'UNKNOWN_ERROR',
+    recoverable: false,
+    details: { errorType: error.name || 'Error' },
+  };
 }
 
 /**
@@ -824,46 +950,17 @@ async function handleLegacyMode(
   } catch (error: any) {
     if (isJqError(error)) {
       logger.error('jq filter error:', error.message);
-      return asErrorResult(`Invalid jq filter syntax. Check your filter and try again.`);
+      return asErrorResult({
+        type: 'validation_error',
+        message: `Invalid jq filter syntax: ${error.message}`,
+        code: 'INVALID_JQ_FILTER',
+        recoverable: false,
+        suggestion: 'Check jq filter syntax. Use the query parameter instead for structured queries (e.g. query="summary").',
+      });
     }
 
     // Error details are already logged by fetchFromApi and logErrorResponse
-    // Return a user-friendly, actionable error message
-
-    let errorMessage = '';
-
-    if (error.response) {
-      const status = error.response.status;
-
-      switch (status) {
-        case 401:
-          errorMessage = 'Authentication failed. Set your SUPERMODEL_API_KEY environment variable and restart the MCP server.';
-          break;
-        case 403:
-          errorMessage = 'Access forbidden. Your API key does not have permission for this operation. Contact support if this is unexpected.';
-          break;
-        case 404:
-          errorMessage = 'API endpoint not found. The service URL may be incorrect. Check your SUPERMODEL_BASE_URL configuration.';
-          break;
-        case 429:
-          errorMessage = 'Rate limit exceeded. Wait a few minutes and try again.';
-          break;
-        case 500:
-        case 502:
-        case 503:
-        case 504:
-          errorMessage = 'Server error. The Supermodel API is temporarily unavailable. Try again in a few minutes.';
-          break;
-        default:
-          errorMessage = `API error (HTTP ${status}). Check the MCP server logs for details.`;
-      }
-    } else if (error.request) {
-      errorMessage = 'No response from server. Check your network connection and verify the API is reachable.';
-    } else {
-      errorMessage = 'Request failed. Check the MCP server logs for details.';
-    }
-
-    return asErrorResult(errorMessage);
+    return asErrorResult(classifyApiError(error));
   }
 }
 
