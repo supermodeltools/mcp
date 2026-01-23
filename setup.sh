@@ -13,9 +13,9 @@ echo "Supermodel MCP Server Setup"
 echo "============================"
 echo ""
 
-# Set timeout for current shell session
+# Set timeout for this script process (won't affect your terminal)
 export MCP_TOOL_TIMEOUT=${TIMEOUT_VALUE}
-echo "✓ Set MCP_TOOL_TIMEOUT=${TIMEOUT_VALUE} for current session"
+echo "✓ Will set MCP_TOOL_TIMEOUT=${TIMEOUT_VALUE} (reload shell to apply)"
 
 # Detect user's shell
 SHELL_NAME=$(basename "$SHELL")
@@ -24,10 +24,16 @@ PROFILE_FILE=""
 if [ "$SHELL_NAME" = "zsh" ]; then
     PROFILE_FILE="$HOME/.zshrc"
 elif [ "$SHELL_NAME" = "bash" ]; then
-    if [ -f "$HOME/.bashrc" ]; then
-        PROFILE_FILE="$HOME/.bashrc"
-    elif [ -f "$HOME/.bash_profile" ]; then
+    # For bash, prefer .bash_profile for login shells (macOS/Linux)
+    # If .bash_profile exists but doesn't source .bashrc, warn the user
+    if [ -f "$HOME/.bash_profile" ]; then
         PROFILE_FILE="$HOME/.bash_profile"
+        if [ -f "$HOME/.bashrc" ] && ! grep -q "\.bashrc" "$HOME/.bash_profile"; then
+            echo "⚠ Note: Your .bash_profile doesn't source .bashrc"
+            echo "   Consider adding: source ~/.bashrc"
+        fi
+    elif [ -f "$HOME/.bashrc" ]; then
+        PROFILE_FILE="$HOME/.bashrc"
     else
         PROFILE_FILE="$HOME/.bashrc"
     fi

@@ -16,13 +16,32 @@ Run the setup script to configure the recommended timeout settings:
 curl -sSL https://raw.githubusercontent.com/supermodeltools/mcp/main/setup.sh | bash
 ```
 
-Or clone the repo and run locally:
+<details>
+<summary>Prefer to inspect before running? (Click to expand)</summary>
+
+Download, review, then execute:
+
+```bash
+# Download the script
+curl -sSL https://raw.githubusercontent.com/supermodeltools/mcp/main/setup.sh -o setup.sh
+
+# Review the contents
+cat setup.sh
+
+# Make executable and run
+chmod +x setup.sh
+./setup.sh
+```
+
+Or clone the entire repo:
 
 ```bash
 git clone https://github.com/supermodeltools/mcp.git
 cd mcp
 ./setup.sh
 ```
+
+</details>
 
 This will configure `MCP_TOOL_TIMEOUT=900000` for optimal performance with large codebases.
 
