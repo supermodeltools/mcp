@@ -49,12 +49,40 @@ export function asTextContentResult(result: unknown): ToolCallResult {
   };
 }
 
-export function asErrorResult(message: string): ToolCallResult {
+/**
+ * Structured error types for agent-parseable error responses.
+ * Agents can use these to decide whether to retry, fallback, or report.
+ */
+export type ErrorType =
+  | 'authentication_error'
+  | 'authorization_error'
+  | 'rate_limit_error'
+  | 'timeout_error'
+  | 'resource_error'
+  | 'validation_error'
+  | 'network_error'
+  | 'internal_error'
+  | 'not_found_error';
+
+export interface StructuredError {
+  type: ErrorType;
+  message: string;
+  code: string;
+  recoverable: boolean;
+  suggestion?: string;
+  details?: Record<string, unknown>;
+}
+
+export function asErrorResult(error: string | StructuredError): ToolCallResult {
+  const text = typeof error === 'string'
+    ? error
+    : JSON.stringify({ error }, null, 2);
+
   return {
     content: [
       {
         type: 'text',
-        text: message,
+        text,
       },
     ],
     isError: true,

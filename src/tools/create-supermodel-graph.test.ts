@@ -70,35 +70,32 @@ describe('create-supermodel-graph', () => {
       } as any;
     });
 
-    it('should return error when no arguments provided and no default workdir', async () => {
+    it('should return structured error when no arguments provided and no default workdir', async () => {
       const result = await handler(mockClient, undefined);
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: expect.stringContaining('No "directory" parameter provided and no default workdir configured'),
-        },
-      ]);
       expect(result.isError).toBe(true);
+      const errorContent = JSON.parse(result.content[0].type === 'text' ? (result.content[0] as any).text : '');
+      expect(errorContent.error.type).toBe('validation_error');
+      expect(errorContent.error.code).toBe('MISSING_DIRECTORY');
+      expect(errorContent.error.recoverable).toBe(false);
+      expect(errorContent.error.suggestion).toBeDefined();
     });
 
-    it('should return error when directory is missing and no default workdir', async () => {
+    it('should return structured error when directory is missing and no default workdir', async () => {
       const args = {
         query: 'summary',
       };
 
       const result = await handler(mockClient, args);
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: expect.stringContaining('No "directory" parameter provided and no default workdir configured'),
-        },
-      ]);
       expect(result.isError).toBe(true);
+      const errorContent = JSON.parse(result.content[0].type === 'text' ? (result.content[0] as any).text : '');
+      expect(errorContent.error.type).toBe('validation_error');
+      expect(errorContent.error.code).toBe('MISSING_DIRECTORY');
+      expect(errorContent.error.recoverable).toBe(false);
     });
 
-    it('should return error when directory is not a string', async () => {
+    it('should return structured error when directory is not a string', async () => {
       const args = {
         directory: 123,
         query: 'summary',
@@ -106,13 +103,11 @@ describe('create-supermodel-graph', () => {
 
       const result = await handler(mockClient, args as any);
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: expect.stringContaining('Invalid "directory" parameter'),
-        },
-      ]);
       expect(result.isError).toBe(true);
+      const errorContent = JSON.parse(result.content[0].type === 'text' ? (result.content[0] as any).text : '');
+      expect(errorContent.error.type).toBe('validation_error');
+      expect(errorContent.error.code).toBe('INVALID_DIRECTORY');
+      expect(errorContent.error.recoverable).toBe(false);
     });
 
     it('should use default workdir when directory is not provided', async () => {
@@ -129,34 +124,43 @@ describe('create-supermodel-graph', () => {
       expect(result.isError).toBe(true); // Will error on actual zip creation, not validation
       const content = result.content[0];
       if (content.type === 'text') {
-        expect(content.text).not.toContain('No "directory" parameter provided');
+        expect(content.text).not.toContain('MISSING_DIRECTORY');
       }
     });
   });
 
-  describe('error message handling', () => {
-    it('should extract directory from error messages correctly', () => {
-      const directory = '/test/missing';
-      const errorMsg = `Directory does not exist: ${directory}`;
+  describe('structured error format', () => {
+    it('should produce valid JSON with error.type, error.code, error.message, error.recoverable', async () => {
+      // Test with missing directory to get a structured error
+      const result = await handler({} as any, { directory: 42 } as any);
 
-      expect(errorMsg).toContain(directory);
-      expect(errorMsg).toMatch(/Directory does not exist/);
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse((result.content[0] as any).text);
+      expect(parsed.error).toBeDefined();
+      expect(parsed.error.type).toBeDefined();
+      expect(parsed.error.code).toBeDefined();
+      expect(parsed.error.message).toBeDefined();
+      expect(typeof parsed.error.recoverable).toBe('boolean');
     });
 
-    it('should format permission denied errors correctly', () => {
-      const directory = '/test/restricted';
-      const errorMsg = `Permission denied accessing directory: ${directory}`;
+    it('should include suggestion field for actionable errors', async () => {
+      const result = await handler({} as any, undefined);
 
-      expect(errorMsg).toContain(directory);
-      expect(errorMsg).toMatch(/Permission denied/);
+      const parsed = JSON.parse((result.content[0] as any).text);
+      expect(parsed.error.suggestion).toBeDefined();
+      expect(parsed.error.suggestion.length).toBeGreaterThan(0);
     });
 
-    it('should format size limit errors correctly', () => {
-      const errorMsg = 'Directory size (1.2 GB) exceeds maximum allowed size (500 MB)';
+    it('should mark not_found_error for missing directories', async () => {
+      const mockClient = { graphs: { generateSupermodelGraph: jest.fn() } } as any;
+      const result = await handler(mockClient, { directory: '/nonexistent/path/xyz' });
 
-      expect(errorMsg).toMatch(/exceeds maximum allowed size/);
-      expect(errorMsg).toContain('1.2 GB');
-      expect(errorMsg).toContain('500 MB');
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse((result.content[0] as any).text);
+      expect(parsed.error.type).toBe('not_found_error');
+      expect(parsed.error.code).toBe('DIRECTORY_NOT_FOUND');
+      expect(parsed.error.recoverable).toBe(false);
+      expect(parsed.error.details.directory).toBe('/nonexistent/path/xyz');
     });
   });
 
