@@ -17,13 +17,20 @@ gh workflow run release.yml -f version_bump=minor
 gh workflow run release.yml -f version_bump=major
 ```
 
-**That's it!** The workflow handles everything:
+**Almost there!** The workflow handles:
 - ✅ Version bump
 - ✅ File sync
 - ✅ Git commit & tag
 - ✅ GitHub release creation
-- ✅ PyPI publication
-- ✅ npm publication (4 packages)
+
+**Then manually trigger publication:**
+```bash
+# Wait for release workflow to complete, then:
+gh workflow run publish.yml -f tag=vX.Y.Z
+gh workflow run publish-npm.yml -f tag=vX.Y.Z
+```
+
+Why? GitHub Actions security prevents workflows from auto-triggering other workflows.
 
 ## Version Bump Decision Tree
 

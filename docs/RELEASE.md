@@ -202,6 +202,20 @@ Publishes **4 packages**:
 - Groups changes by type (features, fixes, docs, etc.)
 - Credits contributors
 
+## GitHub Actions Limitation
+
+**Important**: When the release workflow creates a release using `GITHUB_TOKEN`, it doesn't automatically trigger the PyPI and npm publish workflows. This is a GitHub Actions security feature to prevent recursive workflow triggers.
+
+**Workaround**: After running the release workflow, manually trigger the publish workflows:
+
+```bash
+# After release workflow completes
+gh workflow run publish.yml -f tag=v0.3.25
+gh workflow run publish-npm.yml -f tag=v0.3.25
+```
+
+**Alternative**: Use a Personal Access Token (PAT) in the release workflow instead of `GITHUB_TOKEN` (not implemented yet, but possible future enhancement).
+
 ## Troubleshooting
 
 ### Version Mismatch Error
