@@ -97,45 +97,26 @@ jobs:
           git tag -a "v${{ steps.new_version.outputs.version }}" -m "Release v${{ steps.new_version.outputs.version }}"
           git push origin "v${{ steps.new_version.outputs.version }}"
 
-      - name: Get release notes from draft
-        id: release_notes
-        run: |
-          # Get the latest draft release
-          DRAFT_RELEASE=$(gh release list --limit 1 --exclude-pre-releases --json isDraft,body,tagName,name | jq -r '.[] | select(.isDraft==true)')
-
-          if [ -n "$DRAFT_RELEASE" ]; then
-            DRAFT_BODY=$(echo "$DRAFT_RELEASE" | jq -r '.body')
-            DRAFT_TAG=$(echo "$DRAFT_RELEASE" | jq -r '.tagName')
-
-            echo "Found draft release: $DRAFT_TAG"
-            echo "body<<EOF" >> $GITHUB_OUTPUT
-            echo "$DRAFT_BODY" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-
-            # Delete the draft release since we're creating a new one
-            gh release delete "$DRAFT_TAG" --yes || true
-          else
-            echo "No draft release found, using default notes"
-            echo "body=Release v${{ steps.new_version.outputs.version }}" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Create GitHub Release
         run: |
-          RELEASE_NOTES="${{ steps.release_notes.outputs.body }}"
           ADDITIONAL_NOTES="${{ github.event.inputs.release_notes }}"
+          VERSION="${{ steps.new_version.outputs.version }}"
 
+          # Use --generate-notes to auto-generate release notes from commits/PRs
           if [ -n "$ADDITIONAL_NOTES" ]; then
-            RELEASE_NOTES="${RELEASE_NOTES}\n\n## Additional Notes\n\n${ADDITIONAL_NOTES}"
+            # Create release with generated notes plus additional notes
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --generate-notes \
+              --notes "${ADDITIONAL_NOTES}" \
+              --latest
+          else
+            # Create release with just generated notes
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --generate-notes \
+              --latest
           fi
-
-          RELEASE_NOTES="${RELEASE_NOTES}\n\n---\n\n🤖 Released via automated workflow"
-
-          gh release create "v${{ steps.new_version.outputs.version }}" \
-            --title "v${{ steps.new_version.outputs.version }}" \
-            --notes "${RELEASE_NOTES}" \
-            --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
