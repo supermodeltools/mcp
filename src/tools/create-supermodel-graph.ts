@@ -28,7 +28,9 @@ export const metadata: Metadata = {
 
 export const tool: Tool = {
   name: 'explore_codebase',
-  description: `Analyzes code within the target directory to produce a graph that can be used to navigate the codebase when solving bugs, planning or analyzing code changes.
+  description: `Comprehensive codebase analysis using Supermodel API. ⚠️ This operation takes 5-15 minutes for large repositories. Ensure your Claude CLI timeout is configured (MCP_TOOL_TIMEOUT=900000). Analyzes code structure, dependencies, and patterns while respecting .gitignore.
+
+Analyzes code within the target directory to produce a graph that can be used to navigate the codebase when solving bugs, planning or analyzing code changes.
 
 ## Example Output
 
