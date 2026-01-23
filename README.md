@@ -215,28 +215,16 @@ Analyzes code structure, dependencies, and relationships across a repository. Us
    explore_codebase(directory="/path/to/repo/src/core")
    ```
 
-2. **Increase your MCP client timeout** - Configuration varies by client:
+2. **Increase your MCP client timeout** - For Claude Code CLI, set the `MCP_TOOL_TIMEOUT` environment variable:
 
-   **Claude Desktop/Cursor** - Add to your MCP config:
-   ```json
-   {
-     "mcpServers": {
-       "supermodel": {
-         "command": "npx",
-         "args": ["-y", "@supermodeltools/mcp-server"],
-         "timeout": 300000,
-         "env": {
-           "SUPERMODEL_API_KEY": "your-api-key"
-         }
-       }
-     }
-   }
-   ```
-
-   **Claude Code** - Set a longer timeout when adding the server:
    ```bash
-   claude mcp add supermodel --timeout 300000 --env SUPERMODEL_API_KEY=your-api-key -- npx -y @supermodeltools/mcp-server
+   # Set timeout to 15 minutes (900000ms) for large codebase analysis
+   export MCP_TOOL_TIMEOUT=900000
    ```
+
+   Then reload your shell or start a new terminal session. This timeout applies to all MCP tool executions.
+
+   **Note:** Timeout configuration is currently only supported in Claude Code CLI.
 
 3. **Verify `.gitignore` excludes build artifacts** - Ensure your repository excludes:
    - `node_modules/`, `vendor/`, `venv/`
