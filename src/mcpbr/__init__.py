@@ -3,4 +3,4 @@
 A benchmark runner for evaluating MCP servers against SWE-bench tasks.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.23"
