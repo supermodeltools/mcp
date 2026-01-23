@@ -323,8 +323,11 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
       logger.error('Stack trace:', error.stack);
     }
 
+    // Normalize: guard against non-Error throws (string, object, undefined)
+    const message = typeof error?.message === 'string' ? error.message : String(error);
+
     // Return structured, actionable error messages
-    if (error.message.includes('does not exist')) {
+    if (message.includes('does not exist')) {
       return asErrorResult({
         type: 'not_found_error',
         message: `Directory not found: ${directory}`,
@@ -334,7 +337,7 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
         details: { directory },
       });
     }
-    if (error.message.includes('Permission denied')) {
+    if (message.includes('Permission denied')) {
       return asErrorResult({
         type: 'resource_error',
         message: `Permission denied accessing directory: ${directory}`,
@@ -344,17 +347,17 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
         details: { directory },
       });
     }
-    if (error.message.includes('exceeds limit')) {
+    if (message.includes('exceeds limit')) {
       return asErrorResult({
         type: 'resource_error',
-        message: error.message,
+        message,
         code: 'ZIP_TOO_LARGE',
         recoverable: true,
         suggestion: 'Analyze a subdirectory instead of the full repository (e.g. directory="/repo/src/core"). This reduces ZIP size and processing time.',
         details: { directory },
       });
     }
-    if (error.message.includes('ENOSPC')) {
+    if (message.includes('ENOSPC')) {
       return asErrorResult({
         type: 'resource_error',
         message: 'Insufficient disk space to create ZIP archive.',
@@ -366,7 +369,7 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
 
     return asErrorResult({
       type: 'internal_error',
-      message: `Failed to create ZIP archive: ${error.message}`,
+      message: `Failed to create ZIP archive: ${message}`,
       code: 'ZIP_CREATION_FAILED',
       recoverable: false,
       details: { directory, errorType: error.name || 'Error' },
