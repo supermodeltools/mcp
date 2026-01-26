@@ -327,6 +327,12 @@ def main() -> None:
     is_flag=True,
     help="Skip MCP server pre-flight health check",
 )
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Directory for all outputs (logs, state, results). Default: .mcpbr_run_TIMESTAMP",
+)
 def run(
     config_path: Path,
     model_override: str | None,
@@ -364,6 +370,7 @@ def run(
     state_dir: Path | None,
     no_incremental: bool,
     skip_health_check: bool,
+    output_dir: Path | None,
 ) -> None:
     """Run SWE-bench evaluation with the configured MCP server.
 
@@ -434,6 +441,58 @@ def run(
             sys.exit(1)
         config.budget = budget
 
+    # Determine output directory AFTER all CLI overrides are applied
+    import shutil
+    from datetime import datetime
+
+    if output_dir:
+        # CLI flag takes precedence
+        final_output_dir = output_dir
+    elif config.output_dir:
+        # Config setting
+        final_output_dir = Path(config.output_dir)
+    else:
+        # Default: timestamped directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        final_output_dir = Path(f".mcpbr_run_{timestamp}")
+
+    # Override state_dir to use output directory if not explicitly set
+    if state_dir is None:
+        state_dir = final_output_dir
+
+    # Create output directory
+    final_output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy config file to output directory with SameFileError handling
+    config_copy_path = final_output_dir / "config.yaml"
+    try:
+        shutil.copy2(config_path, config_copy_path)
+    except shutil.SameFileError:
+        # Skip copy if source and destination are the same file
+        pass
+
+    # Create README.txt in output directory with finalized config values
+    readme_content = f"""This directory contains the complete output from an mcpbr evaluation run.
+
+Started: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Config: {config_path.name}
+Benchmark: {config.benchmark}
+Model: {config.model}
+Provider: {config.provider}
+
+Files:
+- config.yaml: Configuration used for this run
+- evaluation_state.json: Per-task results and state
+- logs/: Detailed execution traces (MCP server logs)
+
+To analyze results:
+  mcpbr state --state-dir {final_output_dir}
+
+To archive:
+  tar -czf results.tar.gz {final_output_dir.name}
+"""
+    (final_output_dir / "README.txt").write_text(readme_content)
+
     # Initialize state tracker for incremental evaluation
     state_tracker = None
     use_incremental = not no_incremental
@@ -486,6 +545,7 @@ def run(
         console.print()
 
     console.print("[bold]mcpbr Evaluation[/bold]")
+    console.print(f"  Output directory: {final_output_dir}")
     console.print(f"  Config: {config_path}")
     console.print(f"  Provider: {config.provider}")
     console.print(f"  Model: {config.model}")
@@ -527,6 +587,7 @@ def run(
                 task_ids=selected_task_ids,
                 state_tracker=state_tracker,
                 from_task=from_task,
+                mcp_logs_dir=final_output_dir,
             )
         )
     except KeyboardInterrupt:
