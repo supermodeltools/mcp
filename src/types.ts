@@ -1,8 +1,8 @@
-import { SupermodelClient } from '@supermodeltools/sdk';
+import { DefaultApi } from '@supermodeltools/sdk';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 export interface ClientContext {
-  graphs: SupermodelClient;
+  api: DefaultApi;
 }
 
 export type ContentBlock = 

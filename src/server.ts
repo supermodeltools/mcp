@@ -1,7 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
+import { Configuration, DefaultApi } from '@supermodeltools/sdk';
 import createSupermodelGraphTool from './tools/create-supermodel-graph';
+import { graphTools } from './tools/graph-tools';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';
@@ -109,28 +110,39 @@ This helps the maintainers fix bugs faster and avoids wasting your iteration bud
       logger.debug('Default workdir:', this.defaultWorkdir);
     }
 
-    const api = new DefaultApi(config);
     this.client = {
-      graphs: new SupermodelClient(api),
+      api: new DefaultApi(config),
     };
 
     this.setupHandlers();
   }
 
   private setupHandlers() {
+    // Collect all tools: the main explore_codebase tool plus individual graph tools
+    const allTools = [
+      createSupermodelGraphTool,
+      ...graphTools,
+    ];
+
+    // Create a map for quick handler lookup
+    const toolMap = new Map(
+      allTools.map(t => [t.tool.name, t])
+    );
+
     this.server.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
-        tools: [createSupermodelGraphTool.tool],
+        tools: allTools.map(t => t.tool),
       };
     });
 
     this.server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
-      
-      if (name === createSupermodelGraphTool.tool.name) {
-        return createSupermodelGraphTool.handler(this.client, args, this.defaultWorkdir);
+
+      const tool = toolMap.get(name);
+      if (tool) {
+        return tool.handler(this.client, args, this.defaultWorkdir);
       }
-      
+
       throw new Error(`Unknown tool: ${name}`);
     });
   }

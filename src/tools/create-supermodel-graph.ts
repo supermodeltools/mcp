@@ -773,11 +773,11 @@ async function fetchFromApi(client: ClientContext, file: string, idempotencyKey:
   }, 15000);
 
   try {
-    // SupermodelClient handles polling automatically
-    const response = await client.graphs.generateSupermodelGraph(
-      fileBlob as any,
-      { idempotencyKey }
-    );
+    // DefaultApi handles the request
+    const response = await client.api.generateSupermodelGraph({
+      idempotencyKey,
+      file: fileBlob as any,
+    });
     const duration = Date.now() - startTime;
 
     // Clear progress interval
