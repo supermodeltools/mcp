@@ -294,6 +294,90 @@ Analyzes code structure, dependencies, and relationships across a repository. Us
 - Cleans up temporary files automatically
 - Cross-platform compatible
 
+### Individual Graph Tools
+
+For targeted analysis, use these specialized tools instead of the comprehensive `explore_codebase`:
+
+#### `get_call_graph`
+
+Generate a function-level call graph showing caller/callee relationships.
+
+**Use this to:**
+- Find all functions that call a specific function
+- Find all functions called by a specific function
+- Trace call chains through the codebase
+- Understand function dependencies
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `directory` | string | Yes | Path to repository directory |
+| `jq_filter` | string | No | jq filter for custom data extraction |
+
+#### `get_dependency_graph`
+
+Generate a module-level dependency graph showing import relationships.
+
+**Use this to:**
+- Understand module dependencies
+- Find circular dependencies
+- Identify tightly coupled modules
+- Plan module extraction or refactoring
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `directory` | string | Yes | Path to repository directory |
+| `jq_filter` | string | No | jq filter for custom data extraction |
+
+#### `get_domain_graph`
+
+Generate a high-level domain classification graph.
+
+**Use this to:**
+- Understand the architectural domains in a codebase
+- See how code is organized into logical areas
+- Get a bird's-eye view of system structure
+- Identify domain boundaries
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `directory` | string | Yes | Path to repository directory |
+| `jq_filter` | string | No | jq filter for custom data extraction |
+
+#### `get_parse_graph`
+
+Generate an AST-level parse graph with fine-grained code structure.
+
+**Use this to:**
+- Analyze detailed code structure
+- Find specific syntax patterns
+- Understand class/function definitions at AST level
+- Support precise refactoring operations
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `directory` | string | Yes | Path to repository directory |
+| `jq_filter` | string | No | jq filter for custom data extraction |
+
+### Choosing the Right Tool
+
+| Tool | Best For | Output Size |
+|------|----------|-------------|
+| `explore_codebase` | Comprehensive analysis with built-in queries | Largest - all graph types |
+| `get_call_graph` | Function call tracing, debugging | Medium - functions only |
+| `get_dependency_graph` | Module refactoring, circular deps | Small - modules only |
+| `get_domain_graph` | Architecture overview | Smallest - domains only |
+| `get_parse_graph` | AST analysis, precise refactoring | Large - full AST |
+
+**Tip:** Start with `get_domain_graph` for a quick architecture overview, then drill down with `get_call_graph` or `get_dependency_graph` for specific areas.
+
 ## Tool Performance & Timeout Requirements
 
 The `explore_codebase` tool analyzes your entire repository to build a comprehensive code graph. Analysis time scales with repository size and complexity.
@@ -501,6 +585,69 @@ To enable verbose logging, set the `DEBUG` environment variable:
 ## Benchmarking
 
 Benchmark this MCP server using [mcpbr](https://github.com/caspianmoon/mcpbr-benchmark-caching) with the provided [`mcpbr-config.yaml`](./mcpbr-config.yaml) configuration.
+
+## Local Development & Testing
+
+### Building from Source
+
+```bash
+git clone https://github.com/supermodeltools/mcp.git
+cd mcp
+npm install
+npm run build
+```
+
+### Running Locally
+
+```bash
+# Start the MCP server
+node dist/index.js
+
+# Or with a default working directory
+node dist/index.js /path/to/repo
+```
+
+### Testing Tools Locally
+
+Use the included test script to verify the server and list available tools:
+
+```bash
+# List all tools (no API key needed)
+node scripts/test-local.js
+
+# Test with a specific directory
+node scripts/test-local.js /path/to/your/repo
+```
+
+### Using MCP Inspector
+
+For interactive testing, use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+
+```bash
+# Install the inspector
+npm install -g @modelcontextprotocol/inspector
+
+# Run with your server
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+This opens a web UI where you can:
+- See all available tools
+- Call tools with custom arguments
+- View responses in real-time
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+
+# Type checking
+npm run typecheck
+```
 
 ## Links
 
