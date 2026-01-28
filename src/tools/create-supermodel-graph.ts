@@ -1,5 +1,6 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFile } from 'fs/promises';
+import { Blob } from 'buffer';
 import { basename } from 'path';
 import {
   Metadata,

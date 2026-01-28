@@ -13,7 +13,7 @@ import {
   asErrorResult,
   ClientContext,
 } from '../types';
-import { maybeFilter } from '../filtering';
+import { maybeFilter, isJqError } from '../filtering';
 import { zipRepository } from '../utils/zip-repository';
 import * as logger from '../utils/logger';
 import {
@@ -237,6 +237,16 @@ function createGraphTool(config: GraphTypeConfig): {
       const result = await maybeFilter(jq_filter, response);
       return asTextContentResult(result);
     } catch (error: any) {
+      if (isJqError(error)) {
+        logger.error(`[${config.toolName}] jq filter error:`, error.message);
+        return asErrorResult({
+          type: 'validation_error',
+          message: `Invalid jq filter syntax: ${error.message}`,
+          code: 'INVALID_JQ_FILTER',
+          recoverable: false,
+          suggestion: 'Check jq filter syntax. Example: jq_filter=".nodes" or jq_filter=".graph.nodeCount"',
+        });
+      }
       logger.error(`[${config.toolName}] API error:`, error.message);
       return asErrorResult(classifyApiError(error));
     } finally {
