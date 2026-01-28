@@ -75,7 +75,9 @@ mcp_server:
                 raise KeyboardInterrupt()
 
             with patch("mcpbr.cli.run_evaluation", side_effect=mock_run_evaluation):
-                result = runner.invoke(main, ["run", "-c", str(config_path), "--skip-health-check"])
+                result = runner.invoke(
+                    main, ["run", "-c", str(config_path), "--skip-health-check", "--skip-preflight"]
+                )
 
                 assert result.exit_code == 130
                 assert "interrupted by user" in result.output
