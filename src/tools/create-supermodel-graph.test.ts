@@ -1,5 +1,6 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
-import { handler, classifyApiError } from './create-supermodel-graph';
+import { handler } from './create-supermodel-graph';
+import { classifyApiError } from '../utils/api-helpers';
 import { ClientContext } from '../types';
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';

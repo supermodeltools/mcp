@@ -5,20 +5,23 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFile } from 'fs/promises';
-import { execSync } from 'child_process';
-import { createHash } from 'crypto';
-import { basename, resolve } from 'path';
 import {
   Metadata,
   HandlerFunction,
   asTextContentResult,
   asErrorResult,
   ClientContext,
-  StructuredError
 } from '../types';
 import { maybeFilter } from '../filtering';
 import { zipRepository } from '../utils/zip-repository';
 import * as logger from '../utils/logger';
+import {
+  REPORT_REPO,
+  REPORT_SUGGESTION,
+  formatBytes,
+  generateIdempotencyKey,
+  classifyApiError,
+} from '../utils/api-helpers';
 
 // Graph type configuration
 interface GraphTypeConfig {
@@ -96,124 +99,6 @@ Returns detailed AST nodes and structural relationships.`,
     apiMethod: 'generateParseGraph',
   },
 ];
-
-const REPORT_REPO = 'https://github.com/supermodeltools/mcp.git';
-const REPORT_SUGGESTION = 'This may be a bug in the MCP server. You can help by opening an issue at https://github.com/supermodeltools/mcp/issues with the error details, or fork the repo and open a PR with a fix.';
-
-/**
- * Generate an idempotency key for a specific graph type
- */
-function generateIdempotencyKey(directory: string, graphType: string): string {
-  const repoName = basename(directory);
-  const absolutePath = resolve(directory);
-  const pathHash = createHash('sha1').update(absolutePath).digest('hex').substring(0, 7);
-
-  let hash: string;
-  let statusHash = '';
-
-  try {
-    hash = execSync('git rev-parse --short HEAD', {
-      cwd: directory,
-      encoding: 'utf-8',
-    }).trim();
-
-    const statusOutput = execSync('git status --porcelain', {
-      cwd: directory,
-      encoding: 'utf-8',
-    }).toString();
-
-    if (statusOutput) {
-      statusHash = '-' + createHash('sha1')
-        .update(statusOutput)
-        .digest('hex')
-        .substring(0, 7);
-    }
-  } catch {
-    hash = pathHash;
-  }
-
-  return `${repoName}-${pathHash}:${graphType}:${hash}${statusHash}`;
-}
-
-/**
- * Format bytes as human-readable string
- */
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-/**
- * Classify API errors into structured responses
- */
-function classifyApiError(error: any): StructuredError {
-  if (!error || typeof error !== 'object') {
-    return {
-      type: 'internal_error',
-      message: typeof error === 'string' ? error : 'An unexpected error occurred.',
-      code: 'UNKNOWN_ERROR',
-      recoverable: false,
-      reportable: true,
-      repo: REPORT_REPO,
-      suggestion: REPORT_SUGGESTION,
-    };
-  }
-
-  if (error.response) {
-    const status = error.response.status;
-
-    switch (status) {
-      case 401:
-        return {
-          type: 'authentication_error',
-          message: 'Invalid or missing API key.',
-          code: 'INVALID_API_KEY',
-          recoverable: false,
-          suggestion: 'Set the SUPERMODEL_API_KEY environment variable and restart the MCP server.',
-        };
-      case 403:
-        return {
-          type: 'authorization_error',
-          message: 'API key does not have permission for this operation.',
-          code: 'FORBIDDEN',
-          recoverable: false,
-          suggestion: 'Verify your API key has the correct permissions.',
-        };
-      case 429:
-        return {
-          type: 'rate_limit_error',
-          message: 'API rate limit exceeded.',
-          code: 'RATE_LIMITED',
-          recoverable: true,
-          suggestion: 'Wait 30-60 seconds and retry.',
-        };
-      default:
-        if (status >= 500) {
-          return {
-            type: 'internal_error',
-            message: `API server error (HTTP ${status}).`,
-            code: 'SERVER_ERROR',
-            recoverable: true,
-            reportable: true,
-            repo: REPORT_REPO,
-            suggestion: REPORT_SUGGESTION,
-          };
-        }
-    }
-  }
-
-  return {
-    type: 'internal_error',
-    message: error.message || 'An unexpected error occurred.',
-    code: 'UNKNOWN_ERROR',
-    recoverable: false,
-    reportable: true,
-    repo: REPORT_REPO,
-    suggestion: REPORT_SUGGESTION,
-  };
-}
 
 /**
  * Create a tool definition and handler for a specific graph type
