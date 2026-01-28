@@ -1,3 +1,8 @@
+/**
+ * MCP Server implementation for the Supermodel codebase analysis tools.
+ * Provides JSON-RPC handlers for code graph generation and exploration.
+ * @module server
+ */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
@@ -140,10 +145,14 @@ This helps the maintainers fix bugs faster and avoids wasting your iteration bud
       ...graphTools,
     ];
 
-    // Create a map for quick handler lookup
-    const toolMap = new Map(
-      allTools.map(t => [t.tool.name, t])
-    );
+    // Create a map for quick handler lookup, checking for duplicates
+    const toolMap = new Map<string, typeof allTools[0]>();
+    for (const t of allTools) {
+      if (toolMap.has(t.tool.name)) {
+        throw new Error(`Duplicate tool name: ${t.tool.name}`);
+      }
+      toolMap.set(t.tool.name, t);
+    }
 
     this.server.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {

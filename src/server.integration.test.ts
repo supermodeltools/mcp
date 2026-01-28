@@ -5,8 +5,14 @@
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { spawn, ChildProcess } from 'child_process';
+import { existsSync } from 'fs';
 import * as readline from 'readline';
 import * as path from 'path';
+
+/** Maximum time to wait for server startup */
+const SERVER_STARTUP_TIMEOUT_MS = 5000;
+/** Polling interval for server readiness check */
+const STARTUP_POLL_INTERVAL_MS = 100;
 
 describe('MCP Server Integration', () => {
   let server: ChildProcess;
@@ -14,6 +20,12 @@ describe('MCP Server Integration', () => {
   let responseQueue: Map<number, { resolve: (value: any) => void; reject: (err: Error) => void }> = new Map();
   let rl: readline.Interface;
 
+  /**
+   * Sends a JSON-RPC request to the server and waits for response.
+   * @param method - The JSON-RPC method name
+   * @param params - Optional parameters for the request
+   * @returns Promise resolving to the response result
+   */
   function sendRequest(method: string, params: Record<string, unknown> = {}): Promise<any> {
     return new Promise((resolve, reject) => {
       const id = ++requestId;
@@ -37,11 +49,23 @@ describe('MCP Server Integration', () => {
   }
 
   beforeAll(async () => {
-    // Start the MCP server
+    // Verify dist/index.js exists before attempting to start server
     const distPath = path.join(__dirname, '..', 'dist', 'index.js');
+    if (!existsSync(distPath)) {
+      throw new Error(
+        `Server build not found at ${distPath}. Run 'npm run build' first.`
+      );
+    }
+
+    // Start the MCP server
     server = spawn('node', [distPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env }
+    });
+
+    // Handle server spawn errors
+    server.on('error', (err) => {
+      throw new Error(`Failed to start MCP server: ${err.message}`);
     });
 
     // Parse JSON-RPC responses
@@ -67,8 +91,20 @@ describe('MCP Server Integration', () => {
       }
     });
 
-    // Wait for server to start
-    await new Promise(r => setTimeout(r, 500));
+    // Wait for server to be ready with retry loop
+    const startTime = Date.now();
+    while (Date.now() - startTime < SERVER_STARTUP_TIMEOUT_MS) {
+      // Check if server has exited unexpectedly
+      if (server.exitCode !== null) {
+        throw new Error(`Server exited unexpectedly with code ${server.exitCode}`);
+      }
+      // Small delay between checks
+      await new Promise(r => setTimeout(r, STARTUP_POLL_INTERVAL_MS));
+      // Server is ready when stdin is writable
+      if (server.stdin?.writable) {
+        break;
+      }
+    }
   });
 
   afterAll(async () => {

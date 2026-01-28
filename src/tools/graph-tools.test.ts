@@ -1,4 +1,6 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
+import * as os from 'os';
+import * as path from 'path';
 import {
   callGraphTool,
   dependencyGraphTool,
@@ -7,6 +9,10 @@ import {
   graphTools,
 } from './graph-tools';
 import { ClientContext } from '../types';
+
+// Generate OS-safe non-existent paths for testing
+const nonExistentPath = path.join(os.tmpdir(), `nonexistent-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+const defaultWorkdirPath = path.join(os.tmpdir(), `default-workdir-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 describe('graph-tools', () => {
   describe('tool exports', () => {
@@ -128,7 +134,7 @@ describe('graph-tools', () => {
 
     it('should return DIRECTORY_NOT_FOUND error for non-existent directory', async () => {
       const result = await callGraphTool.handler(mockClient, {
-        directory: '/nonexistent/path/xyz123'
+        directory: nonExistentPath
       });
 
       expect(result.isError).toBe(true);
@@ -138,9 +144,9 @@ describe('graph-tools', () => {
     });
 
     it('should use default workdir when directory not provided', async () => {
-      // Will fail at zip stage since /default/workdir doesn't exist,
+      // Will fail at zip stage since the path doesn't exist,
       // but proves it attempted to use the default workdir
-      const result = await callGraphTool.handler(mockClient, {}, '/default/workdir');
+      const result = await callGraphTool.handler(mockClient, {}, defaultWorkdirPath);
 
       expect(result.isError).toBe(true);
       const errorContent = JSON.parse(result.content[0].type === 'text' ? (result.content[0] as any).text : '');
