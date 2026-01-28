@@ -4,20 +4,38 @@ mcpbr supports multiple software engineering benchmarks through a flexible abstr
 
 ## Overview
 
-| Benchmark | Type | Dataset | Evaluation | Pre-built Images |
-|-----------|------|---------|------------|------------------|
-| **SWE-bench** | Bug fixing | GitHub issues | Test suite pass/fail | Yes (most tasks) |
-| **CyberGym** | Security exploits | Vulnerabilities | Crash detection | No |
+| Benchmark | Tasks | Type | Evaluation | Pre-built Images |
+|-----------|-------|------|------------|------------------|
+| **swe-bench-verified** | 500 | Bug fixing | Test suite pass/fail | Yes (most tasks) |
+| **swe-bench-lite** | 300 | Bug fixing | Test suite pass/fail | Yes (most tasks) |
+| **swe-bench-full** | 2,294 | Bug fixing | Test suite pass/fail | Yes (most tasks) |
+| **cybergym** | Varies | Security exploits | Crash detection | No |
 
-## SWE-bench
+## SWE-bench Variants
 
 [SWE-bench](https://www.swebench.com/) is a benchmark of real-world software issues from GitHub repositories. The agent's task is to generate a patch that fixes the bug.
 
-### Dataset
+mcpbr provides three SWE-bench variants as distinct benchmarks:
 
-- **Source**: [SWE-bench/SWE-bench_Lite](https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite) on HuggingFace
+### swe-bench-verified (Default)
+- **Benchmark ID**: `swe-bench-verified`
+- **Dataset**: [princeton-nlp/SWE-bench_Verified](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Verified)
+- **Tasks**: 500 manually validated test cases
+- **Use Case**: Higher quality evaluation with reliable tests, recommended for accurate benchmarking
+- **Quality**: Each task has been manually reviewed to ensure test correctness
+
+### swe-bench-lite
+- **Benchmark ID**: `swe-bench-lite`
+- **Dataset**: [princeton-nlp/SWE-bench_Lite](https://huggingface.co/datasets/princeton-nlp/SWE-bench_Lite)
 - **Tasks**: 300 curated bug fixes from popular Python repositories
+- **Use Case**: Quick testing and evaluation
 - **Repositories**: Django, Flask, Matplotlib, Pandas, Scikit-learn, SymPy, and more
+
+### swe-bench-full
+- **Benchmark ID**: `swe-bench-full`
+- **Dataset**: [princeton-nlp/SWE-bench](https://huggingface.co/datasets/princeton-nlp/SWE-bench)
+- **Tasks**: 2,294 tasks from the complete benchmark
+- **Use Case**: Comprehensive evaluation, research purposes
 
 ### Task Structure
 
@@ -55,21 +73,30 @@ This ensures:
 ### Example
 
 ```bash
-# Run SWE-bench (default)
+# Run SWE-bench Verified (default - manually validated tests)
 mcpbr run -c config.yaml
 
-# Run specific SWE-bench tasks
-mcpbr run -c config.yaml -t astropy__astropy-12907 -t django__django-11099
+# Run SWE-bench Lite (300 tasks, quick testing)
+mcpbr run -c config.yaml -b swe-bench-lite
 
-# Run with custom dataset
-mcpbr run -c config.yaml --benchmark swe-bench -n 50
+# Run SWE-bench Full (2,294 tasks)
+mcpbr run -c config.yaml -b swe-bench-full
+
+# Run specific tasks
+mcpbr run -c config.yaml -b swe-bench-lite -t astropy__astropy-12907 -t django__django-11099
+
+# Run sample of tasks
+mcpbr run -c config.yaml -n 50
 ```
 
 ### Configuration
 
 ```yaml
-benchmark: "swe-bench"
-dataset: "SWE-bench/SWE-bench_Lite"  # Optional, this is the default
+# Choose a SWE-bench variant:
+benchmark: "swe-bench-verified"  # Default: manually validated, high quality
+# benchmark: "swe-bench-lite"      # 300 tasks, quick testing
+# benchmark: "swe-bench-full"      # Complete: 2,294 tasks
+
 sample_size: 25
 use_prebuilt_images: true  # Recommended
 ```

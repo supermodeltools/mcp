@@ -3,7 +3,7 @@ faq:
   - q: "How do I configure mcpbr to use my MCP server?"
     a: "Configure the mcp_server section in your YAML config file with the command to start your server, args (using {workdir} as placeholder for the task repository path), and any required environment variables."
   - q: "What configuration parameters are available in mcpbr?"
-    a: "Key parameters include mcp_server (command, args, env), provider (anthropic), model, dataset, sample_size, timeout_seconds, max_concurrent, and max_iterations."
+    a: "Key parameters include mcp_server (command, args, env), provider (anthropic), model, benchmark, sample_size, timeout_seconds, max_concurrent, and max_iterations."
   - q: "How do I use environment variables in mcpbr config?"
     a: "Reference environment variables in the env section using ${VAR_NAME} syntax, e.g., SUPERMODEL_API_KEY: '${SUPERMODEL_API_KEY}'. The variable will be expanded from your shell environment at runtime."
   - q: "What is the {workdir} placeholder in mcpbr?"
@@ -104,9 +104,9 @@ agent_prompt: |
 # Model Configuration (use alias or full name)
 model: "sonnet"  # or "claude-sonnet-4-5-20250929"
 
-# Dataset Configuration
-dataset: "SWE-bench/SWE-bench_Lite"
-sample_size: 10  # null for full dataset
+# Benchmark Selection
+benchmark: "swe-bench-lite"  # 300 tasks for quick testing
+sample_size: 10  # null for full benchmark
 
 # Execution Parameters
 timeout_seconds: 300
@@ -264,17 +264,26 @@ See [Installation](installation.md#supported-models) for the full list of suppor
     mcpbr run -c config.yaml --benchmark cybergym --level 2
     ```
 
-### Dataset Configuration
+### Benchmark Selection
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `dataset` | `null` | HuggingFace dataset (optional, benchmark provides default) |
+| `benchmark` | `"swe-bench-verified"` | Benchmark to run |
 | `sample_size` | `null` | Number of tasks (`null` = full dataset) |
 
-The `dataset` field is optional. If not specified, each benchmark uses its default dataset:
+Available benchmarks:
 
-- **SWE-bench**: `SWE-bench/SWE-bench_Lite`
-- **CyberGym**: `sunblaze-ucb/cybergym`
+- **swe-bench-verified**: Manually validated test cases, accurate benchmarking (default)
+- **swe-bench-lite**: 300 curated tasks, quick testing
+- **swe-bench-full**: 2,294 tasks, comprehensive evaluation
+- **cybergym**: Security exploits at various difficulty levels
+- **mcptoolbench**: MCP tool usage evaluation
+
+Example:
+```yaml
+benchmark: "swe-bench-verified"  # Use high-quality validated tasks
+sample_size: 50                   # Run 50 tasks
+```
 
 ### Execution Parameters
 

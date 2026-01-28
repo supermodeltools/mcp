@@ -14,7 +14,13 @@ from .models import DEFAULT_MODEL
 
 VALID_PROVIDERS = ("anthropic",)
 VALID_HARNESSES = ("claude-code",)
-VALID_BENCHMARKS = ("swe-bench", "cybergym", "mcptoolbench")
+VALID_BENCHMARKS = (
+    "swe-bench-lite",
+    "swe-bench-verified",
+    "swe-bench-full",
+    "cybergym",
+    "mcptoolbench",
+)
 
 
 class MCPServerConfig(BaseModel):
@@ -92,13 +98,8 @@ class HarnessConfig(BaseModel):
     )
 
     benchmark: str = Field(
-        default="swe-bench",
-        description="Benchmark to run (swe-bench, cybergym, or mcptoolbench)",
-    )
-
-    dataset: str | None = Field(
-        default=None,
-        description="HuggingFace dataset to use (optional, benchmark provides default)",
+        default="swe-bench-verified",
+        description="Benchmark to run (swe-bench-lite, swe-bench-verified, swe-bench-full, cybergym, mcptoolbench)",
     )
 
     cybergym_level: int = Field(
