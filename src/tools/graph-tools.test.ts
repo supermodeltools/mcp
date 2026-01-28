@@ -161,6 +161,35 @@ describe('graph-tools', () => {
     });
   });
 
+  describe('tool description safety', () => {
+    it('should not contain instructions that could be misused', () => {
+      for (const tool of graphTools) {
+        const desc = (tool.tool.description ?? '').toLowerCase();
+        // Descriptions should be read-only analysis focused
+        expect(desc).not.toContain('delete');
+        expect(desc).not.toContain('remove file');
+        expect(desc).not.toContain('execute command');
+        expect(desc).not.toContain('run shell');
+        expect(desc).not.toContain('modify');
+        expect(desc).not.toContain('write to');
+      }
+    });
+
+    it('should focus on analysis and understanding', () => {
+      for (const tool of graphTools) {
+        const desc = (tool.tool.description ?? '').toLowerCase();
+        // All tools should be about understanding/analyzing code
+        expect(
+          desc.includes('find') ||
+          desc.includes('understand') ||
+          desc.includes('analyze') ||
+          desc.includes('trace') ||
+          desc.includes('identify')
+        ).toBe(true);
+      }
+    });
+  });
+
   describe('all handlers validate parameters consistently', () => {
     let mockClient: ClientContext;
 

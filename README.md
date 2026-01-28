@@ -607,18 +607,6 @@ node dist/index.js
 node dist/index.js /path/to/repo
 ```
 
-### Testing Tools Locally
-
-Use the included test script to verify the server and list available tools:
-
-```bash
-# List all tools (no API key needed)
-node scripts/test-local.js
-
-# Test with a specific directory
-node scripts/test-local.js /path/to/your/repo
-```
-
 ### Using MCP Inspector
 
 For interactive testing, use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
