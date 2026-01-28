@@ -202,7 +202,7 @@ export const handler: HandlerFunction = async (client: ClientContext, args: Reco
   } = args as any;
 
   // Use provided directory or fall back to default workdir
-  const directory = providedDirectory || defaultWorkdir;
+  const directory = providedDirectory ?? defaultWorkdir;
 
   // Validate directory - check if explicitly invalid first
   if (providedDirectory !== undefined && typeof providedDirectory !== 'string') {

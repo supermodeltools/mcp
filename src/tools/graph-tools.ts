@@ -172,7 +172,7 @@ function createGraphTool(config: GraphTypeConfig): {
       });
     }
 
-    const directory = providedDirectory || defaultWorkdir;
+    const directory = providedDirectory ?? defaultWorkdir;
 
     if (!directory || typeof directory !== 'string') {
       return asErrorResult({
