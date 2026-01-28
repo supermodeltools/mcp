@@ -10,6 +10,8 @@ mcpbr supports multiple software engineering benchmarks through a flexible abstr
 | **swe-bench-lite** | 300 | Bug fixing | Test suite pass/fail | Yes (most tasks) |
 | **swe-bench-full** | 2,294 | Bug fixing | Test suite pass/fail | Yes (most tasks) |
 | **cybergym** | Varies | Security exploits | Crash detection | No |
+| **humaneval** | 164 | Code generation | Unit tests | No |
+| **mcptoolbench** | Varies | Tool use | Output validation | No |
 
 ## SWE-bench Variants
 
@@ -296,6 +298,118 @@ The default CyberGym prompt instructs the agent to:
 
 You can customize this with the `agent_prompt` configuration field.
 
+## HumanEval
+
+[HumanEval](https://github.com/openai/human-eval) is a code generation benchmark from OpenAI consisting of 164 Python programming problems. Each task requires completing a function given its signature and docstring.
+
+### Dataset
+
+- **Source**: [openai_humaneval](https://huggingface.co/datasets/openai_humaneval) on HuggingFace
+- **Tasks**: 164 Python programming problems
+- **Difficulty**: Ranges from simple string manipulation to algorithms
+- **Focus**: Function implementation based on docstring specifications
+
+### Task Structure
+
+Each HumanEval task contains:
+
+- **Task ID**: Unique identifier (e.g., "HumanEval/0")
+- **Prompt**: Function signature with docstring describing the requirements
+- **Entry Point**: Name of the function to implement
+- **Canonical Solution**: Reference implementation (not shown to agent)
+- **Test Cases**: Unit tests to verify correctness
+
+### Example Task
+
+```python
+def has_close_elements(numbers: List[float], threshold: float) -> bool:
+    """ Check if in given list of numbers, are any two numbers closer to each other than
+    given threshold.
+    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)
+    False
+    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
+    True
+    """
+```
+
+### Evaluation
+
+1. Agent receives function signature and docstring
+2. Agent generates the function implementation
+3. Implementation is saved to `solution.py`
+4. Test cases are combined with the solution
+5. Python interpreter runs the tests
+6. Task is **resolved** if all test cases pass
+
+### Environment
+
+HumanEval uses lightweight Python environments:
+
+- **Base Image**: Minimal Python 3 Docker container
+- **Dependencies**: None required (standard library only)
+- **Execution**: Direct Python interpretation
+- **Isolation**: Each task runs in its own container
+
+### Example
+
+```bash
+# Run HumanEval benchmark
+mcpbr run -c config/humaneval.yaml
+
+# Run specific HumanEval tasks
+mcpbr run -c config/humaneval.yaml -t HumanEval/0 -t HumanEval/1
+
+# Run first 20 tasks
+mcpbr run -c config/humaneval.yaml -n 20
+
+# Run with custom benchmark flag
+mcpbr run -c config.yaml --benchmark humaneval
+```
+
+### Configuration
+
+```yaml
+benchmark: "humaneval"
+dataset: "openai_humaneval"  # Optional, this is the default
+sample_size: 10
+timeout_seconds: 180  # HumanEval tasks are generally quick
+max_iterations: 15    # Simpler than SWE-bench, fewer iterations needed
+```
+
+### Agent Expectations
+
+The default HumanEval prompt instructs the agent to:
+
+- Read and understand the function docstring
+- Implement the function logic
+- Save the implementation to `solution.py`
+- Ensure the code passes all test cases
+
+The agent should:
+
+- **NOT modify the function signature** - signature is provided and must be preserved
+- **Focus on correctness** - tests must pass exactly
+- **Use only standard library** - no external dependencies
+- **Save to solution.py** - evaluation expects this filename
+
+### Comparison to SWE-bench
+
+| Aspect | SWE-bench | HumanEval |
+|--------|-----------|-----------|
+| **Scope** | Real-world bugs | Isolated functions |
+| **Context** | Full repository | Single function |
+| **Complexity** | High (multi-file, real codebases) | Low (standard library) |
+| **Evaluation** | Test suite (may fail/pass) | Unit tests (pass/fail) |
+| **Typical Time** | 300-600s | 60-180s |
+| **Output** | Patch (unified diff) | Function code |
+
+HumanEval is excellent for:
+
+- **Quick evaluation** of code generation capabilities
+- **Smoke testing** before running expensive benchmarks
+- **Baseline metrics** for comparing models
+- **Testing** MCP tool use in code generation
+
 ## Benchmark Abstraction
 
 mcpbr uses a Protocol-based abstraction that makes it easy to add new benchmarks:
@@ -358,24 +472,26 @@ Available Benchmarks
 ├────────────┼──────────────────────────────────────────────────────────┼─────────────────────────┤
 │ swe-bench  │ Software bug fixes in GitHub repositories                │ Patch (unified diff)    │
 │ cybergym   │ Security vulnerability exploitation (PoC generation)     │ Exploit code            │
+│ humaneval  │ Python function completion (code generation)             │ Function code           │
 └────────────┴──────────────────────────────────────────────────────────┴─────────────────────────┘
 
 Use --benchmark flag with 'run' command to select a benchmark
-Example: mcpbr run -c config.yaml --benchmark cybergym --level 2
+Example: mcpbr run -c config.yaml --benchmark humaneval
 ```
 
 ## Comparing Benchmarks
 
-| Aspect | SWE-bench | CyberGym |
-|--------|-----------|----------|
-| **Goal** | Fix bugs | Exploit vulnerabilities |
-| **Output** | Patch (unified diff) | PoC code |
-| **Languages** | Python | C/C++ |
-| **Evaluation** | Test suite | Crash detection |
-| **Pre-built Images** | Yes (most tasks) | No |
-| **Build Requirements** | Python packages | gcc, sanitizers, cmake |
-| **Difficulty Levels** | N/A | 0-3 |
-| **Typical Timeout** | 300-600s | 600-900s |
+| Aspect | SWE-bench | CyberGym | HumanEval |
+|--------|-----------|----------|-----------|
+| **Goal** | Fix bugs | Exploit vulnerabilities | Generate code |
+| **Output** | Patch (unified diff) | PoC code | Function code |
+| **Languages** | Python | C/C++ | Python |
+| **Evaluation** | Test suite | Crash detection | Unit tests |
+| **Pre-built Images** | Yes (most tasks) | No | No |
+| **Build Requirements** | Python packages | gcc, sanitizers, cmake | Python 3 |
+| **Difficulty Levels** | N/A | 0-3 | N/A |
+| **Typical Timeout** | 300-600s | 600-900s | 60-180s |
+| **Task Count** | 300 (Lite) | Varies | 164 |
 
 ## Best Practices
 
@@ -395,10 +511,21 @@ Example: mcpbr run -c config.yaml --benchmark cybergym --level 2
 - **Check PoC files** - agent must save output to poc.c/poc.py/etc.
 - **Monitor memory** - sanitizers increase memory usage
 
+### HumanEval
+
+- **Start with small samples** (10-20 tasks) to verify setup before running all 164
+- **Use shorter timeouts** (60-180s) - tasks are quick and well-defined
+- **Monitor solution.py creation** - agent must save code to this file
+- **Great for smoke tests** - run HumanEval first before expensive benchmarks
+- **Low resource usage** - can run higher concurrency (8-16 tasks)
+
 ## Related Links
 
 - [SWE-bench Official Site](https://www.swebench.com/)
 - [SWE-bench Paper](https://arxiv.org/abs/2310.06770)
 - [CyberGym Project](https://cybergym.cs.berkeley.edu/)
 - [CyberGym Dataset](https://huggingface.co/datasets/sunblaze-ucb/cybergym)
+- [HumanEval Repository](https://github.com/openai/human-eval)
+- [HumanEval Paper](https://arxiv.org/abs/2107.03374)
+- [HumanEval Dataset](https://huggingface.co/datasets/openai_humaneval)
 - [Epoch AI SWE-bench Images](https://github.com/orgs/Epoch-Research/packages)
