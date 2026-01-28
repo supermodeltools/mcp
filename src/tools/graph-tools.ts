@@ -321,12 +321,9 @@ function createGraphTool(config: GraphTypeConfig): {
       logger.debug(`[${config.toolName}] Calling API...`);
       console.error(`[Supermodel] Generating ${config.name} graph...`);
 
-      // Call the appropriate API method
-      const apiMethod = client.api[config.apiMethod].bind(client.api);
-      const response = await apiMethod({
-        idempotencyKey,
-        file: fileBlob as any,
-      });
+      // Call the appropriate API method via SupermodelClient
+      const apiMethod = client.graphs[config.apiMethod].bind(client.graphs);
+      const response = await apiMethod(fileBlob as any, { idempotencyKey });
 
       console.error(`[Supermodel] ${config.name} graph complete.`);
 
