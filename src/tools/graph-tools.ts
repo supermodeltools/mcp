@@ -266,6 +266,16 @@ function createGraphTool(config: GraphTypeConfig): {
       directory?: string;
     };
 
+    if (providedDirectory !== undefined && typeof providedDirectory !== 'string') {
+      return asErrorResult({
+        type: 'validation_error',
+        message: 'Invalid "directory" parameter. Provide a valid directory path as a string.',
+        code: 'INVALID_DIRECTORY',
+        recoverable: false,
+        suggestion: 'Pass directory as a string path, e.g. directory="/workspace/my-repo".',
+      });
+    }
+
     const directory = providedDirectory || defaultWorkdir;
 
     if (!directory || typeof directory !== 'string') {
