@@ -345,7 +345,11 @@ function createGraphTool(config: GraphTypeConfig): {
       return asErrorResult(classifyApiError(error));
     } finally {
       if (cleanup) {
-        await cleanup();
+        try {
+          await cleanup();
+        } catch (cleanupError) {
+          logger.warn(`[${config.toolName}] Cleanup failed:`, cleanupError);
+        }
       }
     }
   };
