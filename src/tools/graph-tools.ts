@@ -5,6 +5,7 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { readFile } from 'fs/promises';
+import { Blob } from 'buffer';
 import {
   Metadata,
   HandlerFunction,
@@ -158,6 +159,16 @@ function createGraphTool(config: GraphTypeConfig): {
         code: 'INVALID_DIRECTORY',
         recoverable: false,
         suggestion: 'Pass directory as a string path, e.g. directory="/workspace/my-repo".',
+      });
+    }
+
+    if (jq_filter !== undefined && typeof jq_filter !== 'string') {
+      return asErrorResult({
+        type: 'validation_error',
+        message: 'Invalid "jq_filter" parameter. Provide a jq filter string.',
+        code: 'INVALID_JQ_FILTER',
+        recoverable: false,
+        suggestion: 'Pass jq_filter as a string, e.g. jq_filter=".nodes".',
       });
     }
 
