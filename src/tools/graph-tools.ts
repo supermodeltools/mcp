@@ -38,15 +38,17 @@ const GRAPH_TYPES: GraphTypeConfig[] = [
   {
     name: 'call',
     toolName: 'get_call_graph',
-    description: `Generate a function-level call graph showing caller/callee relationships.
+    description: `Generate a call graph showing function-to-function call relationships.
+
+Returns: Function nodes with "calls" relationships between them.
 
 Use this to:
-- Find all functions that call a specific function
+- Find all callers of a specific function
 - Find all functions called by a specific function
-- Trace call chains through the codebase
-- Understand function dependencies
+- Trace execution flow through the codebase
+- Debug by following call chains
 
-Returns nodes (functions) and relationships (calls) between them.`,
+Best for: Debugging, understanding "what calls what", tracing execution paths.`,
     endpoint: '/v1/graphs/call',
     operationId: 'generateCallGraph',
     apiMethod: 'generateCallGraph',
@@ -54,15 +56,17 @@ Returns nodes (functions) and relationships (calls) between them.`,
   {
     name: 'dependency',
     toolName: 'get_dependency_graph',
-    description: `Generate a module-level dependency graph showing import relationships.
+    description: `Generate a dependency graph showing import relationships between files.
+
+Returns: File nodes with "IMPORTS" relationships between them.
 
 Use this to:
-- Understand module dependencies
+- Map which files import which other files
 - Find circular dependencies
-- Identify tightly coupled modules
-- Plan module extraction or refactoring
+- Understand module coupling
+- Plan safe refactoring of imports
 
-Returns nodes (files/modules) and relationships (imports) between them.`,
+Best for: Refactoring, understanding module dependencies, finding import cycles.`,
     endpoint: '/v1/graphs/dependency',
     operationId: 'generateDependencyGraph',
     apiMethod: 'generateDependencyGraph',
@@ -70,15 +74,17 @@ Returns nodes (files/modules) and relationships (imports) between them.`,
   {
     name: 'domain',
     toolName: 'get_domain_graph',
-    description: `Generate a high-level domain classification graph.
+    description: `Generate a domain classification graph showing high-level architecture.
+
+Returns: Domains with descriptions, responsibilities, subdomains, and file/function/class assignments.
 
 Use this to:
-- Understand the architectural domains in a codebase
-- See how code is organized into logical areas
-- Get a bird's-eye view of system structure
-- Identify domain boundaries
+- Understand the architectural structure of a codebase
+- See how code is organized into logical domains
+- Identify domain boundaries and responsibilities
+- Get a bird's-eye view before diving into details
 
-Returns domains, subdomains, and their member files/functions.`,
+Best for: New codebases, architecture overview, understanding system organization.`,
     endpoint: '/v1/graphs/domain',
     operationId: 'generateDomainGraph',
     apiMethod: 'generateDomainGraph',
@@ -86,15 +92,17 @@ Returns domains, subdomains, and their member files/functions.`,
   {
     name: 'parse',
     toolName: 'get_parse_graph',
-    description: `Generate an AST-level parse graph with fine-grained code structure.
+    description: `Generate a full parse graph with all code structure elements.
+
+Returns: All nodes (File, Directory, Class, Function, Type) and structural relationships (CONTAINS, DEFINES, DECLARES, IMPORTS).
 
 Use this to:
-- Analyze detailed code structure
-- Find specific syntax patterns
-- Understand class/function definitions at AST level
-- Support precise refactoring operations
+- Get complete structural information about the codebase
+- Find all classes, functions, and types
+- Understand containment and definition relationships
+- Support detailed refactoring analysis
 
-Returns detailed AST nodes and structural relationships.`,
+Best for: Comprehensive analysis when you need the full code structure.`,
     endpoint: '/v1/graphs/parse',
     operationId: 'generateParseGraph',
     apiMethod: 'generateParseGraph',
