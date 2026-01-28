@@ -263,11 +263,20 @@ function createGraphTool(config: GraphTypeConfig): {
   return { metadata, tool, handler };
 }
 
+// Helper to find graph type by name (safer than array indexing)
+function getGraphType(name: string): GraphTypeConfig {
+  const config = GRAPH_TYPES.find(t => t.name === name);
+  if (!config) {
+    throw new Error(`Unknown graph type: ${name}`);
+  }
+  return config;
+}
+
 // Create all graph tools
-export const callGraphTool = createGraphTool(GRAPH_TYPES[0]);
-export const dependencyGraphTool = createGraphTool(GRAPH_TYPES[1]);
-export const domainGraphTool = createGraphTool(GRAPH_TYPES[2]);
-export const parseGraphTool = createGraphTool(GRAPH_TYPES[3]);
+export const callGraphTool = createGraphTool(getGraphType('call'));
+export const dependencyGraphTool = createGraphTool(getGraphType('dependency'));
+export const domainGraphTool = createGraphTool(getGraphType('domain'));
+export const parseGraphTool = createGraphTool(getGraphType('parse'));
 
 // Export all tools as an array for easy registration
 export const graphTools = [
