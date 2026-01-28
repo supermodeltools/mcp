@@ -264,21 +264,43 @@ See [Installation](installation.md#supported-models) for the full list of suppor
     mcpbr run -c config.yaml --benchmark cybergym --level 2
     ```
 
-### Dataset Configuration
+### Benchmark Selection
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `dataset` | `null` | HuggingFace dataset (optional, benchmark provides default) |
+| `benchmark` | `"swe-bench-lite"` | Benchmark to run |
 | `sample_size` | `null` | Number of tasks (`null` = full dataset) |
 
-The `dataset` field is optional. If not specified, each benchmark uses its default dataset:
+Available benchmarks:
 
-- **SWE-bench**: `SWE-bench/SWE-bench_Lite` (default)
-  - Lite: `SWE-bench/SWE-bench_Lite` - 300 tasks
-  - Verified: `SWE-bench/SWE-bench_Verified` - Manually validated tests
-  - Full: `SWE-bench/SWE-bench` - 2,294 tasks
-- **CyberGym**: `sunblaze-ucb/cybergym`
-- **MCPToolBench++**: `MCPToolBench/MCPToolBenchPP`
+- **swe-bench-lite** (or `swe-bench`): 300 curated tasks, quick testing (default)
+- **swe-bench-verified**: Manually validated test cases, accurate benchmarking
+- **swe-bench-full**: 2,294 tasks, comprehensive evaluation
+- **cybergym**: Security exploits at various difficulty levels
+- **mcptoolbench**: MCP tool usage evaluation
+
+Example:
+```yaml
+benchmark: "swe-bench-verified"  # Use high-quality validated tasks
+sample_size: 50                   # Run 50 tasks
+```
+
+### Dataset Configuration (Advanced)
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `dataset` | `null` | Override HuggingFace dataset (usually not needed) |
+
+The `dataset` field allows advanced users to override the default dataset for a benchmark. In most cases, you should select the appropriate benchmark instead:
+
+```yaml
+# Preferred: Use benchmark selection
+benchmark: "swe-bench-verified"
+
+# Advanced: Manual dataset override (rarely needed)
+benchmark: "swe-bench-lite"
+dataset: "my-org/custom-swebench-dataset"
+```
 
 ### Execution Parameters
 

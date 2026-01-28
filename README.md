@@ -64,10 +64,10 @@ Real GitHub issues requiring bug fixes and patches. The agent generates unified 
 - **Evaluation**: Test suite pass/fail
 - **Pre-built images**: Available for most tasks
 
-**Dataset Variants:**
-- **Lite** ([SWE-bench/SWE-bench_Lite](https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite)) - 300 tasks, default option, good for quick testing
-- **Verified** ([SWE-bench/SWE-bench_Verified](https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified)) - Subset with manually validated test cases for higher quality evaluation
-- **Full** ([SWE-bench/SWE-bench](https://huggingface.co/datasets/SWE-bench/SWE-bench)) - 2,294 tasks, complete benchmark
+**Variants:**
+- **swe-bench-lite** - 300 tasks, default option, good for quick testing ([SWE-bench/SWE-bench_Lite](https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite))
+- **swe-bench-verified** - Manually validated test cases for higher quality evaluation ([SWE-bench/SWE-bench_Verified](https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified))
+- **swe-bench-full** - 2,294 tasks, complete benchmark ([SWE-bench/SWE-bench](https://huggingface.co/datasets/SWE-bench/SWE-bench))
 
 ### CyberGym
 Security vulnerabilities requiring Proof-of-Concept (PoC) exploits. The agent generates exploits that trigger crashes in vulnerable code.
@@ -88,20 +88,20 @@ Large-scale MCP tool use evaluation across 45+ categories. Tests agent capabilit
 - **Learn more**: [MCPToolBench++ Paper](https://arxiv.org/pdf/2508.07575) | [GitHub](https://github.com/mcp-tool-bench/MCPToolBenchPP)
 
 ```bash
-# Run SWE-bench Lite (default)
+# Run SWE-bench Lite (default - 300 tasks)
 mcpbr run -c config.yaml
 
 # Run SWE-bench Verified (higher quality, manually validated tests)
-mcpbr run -c config.yaml --verified
+mcpbr run -c config.yaml -b swe-bench-verified
 
-# Run full SWE-bench dataset
-mcpbr run -c config.yaml --dataset SWE-bench/SWE-bench
+# Run SWE-bench Full (2,294 tasks)
+mcpbr run -c config.yaml -b swe-bench-full
 
 # Run CyberGym at level 2
-mcpbr run -c config.yaml --benchmark cybergym --level 2
+mcpbr run -c config.yaml -b cybergym --level 2
 
 # Run MCPToolBench++
-mcpbr run -c config.yaml --benchmark mcptoolbench
+mcpbr run -c config.yaml -b mcptoolbench
 
 # List available benchmarks
 mcpbr benchmarks

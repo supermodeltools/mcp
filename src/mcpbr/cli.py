@@ -134,7 +134,7 @@ def main() -> None:
     "benchmark_override",
     type=click.Choice(VALID_BENCHMARKS),
     default=None,
-    help="Override benchmark from config (swe-bench, cybergym, or mcptoolbench)",
+    help="Override benchmark from config (swe-bench-lite, swe-bench-verified, swe-bench-full, cybergym, mcptoolbench)",
 )
 @click.option(
     "--level",
@@ -142,11 +142,6 @@ def main() -> None:
     type=click.IntRange(0, 3),
     default=None,
     help="Override CyberGym difficulty level (0-3)",
-)
-@click.option(
-    "--verified",
-    is_flag=True,
-    help="Use SWE-bench Verified dataset (shortcut for --dataset SWE-bench/SWE-bench_Verified)",
 )
 @click.option(
     "--sample",
@@ -363,7 +358,6 @@ def run(
     harness_override: str | None,
     benchmark_override: str | None,
     level_override: int | None,
-    verified: bool,
     sample_size: int | None,
     mcp_only: bool,
     baseline_only: bool,
@@ -398,19 +392,20 @@ def run(
     skip_health_check: bool,
     output_dir: Path | None,
 ) -> None:
-    """Run SWE-bench evaluation with the configured MCP server.
+    """Run benchmark evaluation with the configured MCP server.
 
     \b
     Examples:
-      mcpbr run -c config.yaml           # Full evaluation
-      mcpbr run -c config.yaml -M        # MCP only
-      mcpbr run -c config.yaml -B        # Baseline only
-      mcpbr run -c config.yaml -n 10     # Sample 10 tasks
-      mcpbr run -c config.yaml --verified  # Use SWE-bench Verified dataset
-      mcpbr run -c config.yaml -v        # Verbose output
+      mcpbr run -c config.yaml                    # Full evaluation
+      mcpbr run -c config.yaml -M                 # MCP only
+      mcpbr run -c config.yaml -B                 # Baseline only
+      mcpbr run -c config.yaml -n 10              # Sample 10 tasks
+      mcpbr run -c config.yaml -b swe-bench-verified  # Use Verified dataset
+      mcpbr run -c config.yaml -b swe-bench-full  # Use Full dataset (2,294 tasks)
+      mcpbr run -c config.yaml -v                 # Verbose output
       mcpbr run -c config.yaml -o out.json -r report.md
-      mcpbr run -c config.yaml --yaml out.yaml  # Save as YAML
-      mcpbr run -c config.yaml -y out.yaml  # Save as YAML (short form)
+      mcpbr run -c config.yaml --yaml out.yaml    # Save as YAML
+      mcpbr run -c config.yaml -y out.yaml        # Save as YAML (short form)
 
     \b
     Incremental Evaluation:
@@ -476,9 +471,6 @@ def run(
 
     if level_override is not None:
         config.cybergym_level = level_override
-
-    if verified:
-        config.dataset = "SWE-bench/SWE-bench_Verified"
 
     if sample_size is not None:
         config.sample_size = sample_size
@@ -1069,30 +1061,44 @@ def benchmarks() -> None:
 
     table = Table()
     table.add_column("Benchmark", style="cyan")
+    table.add_column("Tasks")
     table.add_column("Description")
-    table.add_column("Output Type")
 
+    # SWE-bench variants
     table.add_row(
-        "swe-bench",
-        "Software bug fixes in GitHub repositories",
-        "Patch (unified diff)",
+        "swe-bench-lite",
+        "300",
+        "Bug fixing (quick testing, curated tasks) - DEFAULT",
     )
     table.add_row(
+        "swe-bench-verified",
+        "Subset",
+        "Bug fixing (manually validated tests, accurate benchmarking)",
+    )
+    table.add_row(
+        "swe-bench-full",
+        "2,294",
+        "Bug fixing (complete benchmark, research)",
+    )
+    # Other benchmarks
+    table.add_row(
         "cybergym",
-        "Security vulnerability exploitation (PoC generation)",
-        "Exploit code",
+        "Varies",
+        "Security exploits (PoC generation, difficulty levels 0-3)",
     )
     table.add_row(
         "mcptoolbench",
-        "MCP tool use evaluation (tool discovery, selection, invocation)",
-        "Tool call sequence",
+        "Varies",
+        "MCP tool use (tool discovery, selection, invocation)",
     )
 
     console.print(table)
-    console.print("\n[dim]Use --benchmark flag with 'run' command to select a benchmark[/dim]")
+    console.print("\n[dim]Use -b/--benchmark flag to select a benchmark[/dim]")
     console.print("[dim]Examples:[/dim]")
-    console.print("[dim]  mcpbr run -c config.yaml --benchmark cybergym --level 2[/dim]")
-    console.print("[dim]  mcpbr run -c config.yaml --benchmark mcptoolbench[/dim]")
+    console.print("[dim]  mcpbr run -c config.yaml -b swe-bench-verified[/dim]")
+    console.print("[dim]  mcpbr run -c config.yaml -b swe-bench-full -n 50[/dim]")
+    console.print("[dim]  mcpbr run -c config.yaml -b cybergym --level 2[/dim]")
+    console.print("[dim]  mcpbr run -c config.yaml -b mcptoolbench[/dim]")
 
 
 @main.group(context_settings={"help_option_names": ["-h", "--help"]})

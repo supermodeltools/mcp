@@ -14,7 +14,14 @@ from .models import DEFAULT_MODEL
 
 VALID_PROVIDERS = ("anthropic",)
 VALID_HARNESSES = ("claude-code",)
-VALID_BENCHMARKS = ("swe-bench", "cybergym", "mcptoolbench")
+VALID_BENCHMARKS = (
+    "swe-bench",  # Alias for swe-bench-lite (backwards compat)
+    "swe-bench-lite",
+    "swe-bench-verified",
+    "swe-bench-full",
+    "cybergym",
+    "mcptoolbench",
+)
 
 
 class MCPServerConfig(BaseModel):

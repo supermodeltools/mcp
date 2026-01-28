@@ -19,15 +19,40 @@ class TestBenchmarkRegistry:
         """Test listing available benchmarks."""
         benchmarks = list_benchmarks()
         assert "swe-bench" in benchmarks
+        assert "swe-bench-lite" in benchmarks
+        assert "swe-bench-verified" in benchmarks
+        assert "swe-bench-full" in benchmarks
         assert "cybergym" in benchmarks
         assert "mcptoolbench" in benchmarks
-        assert len(benchmarks) >= 3
+        assert len(benchmarks) >= 6
 
     def test_create_swebench(self) -> None:
-        """Test creating SWE-bench benchmark."""
+        """Test creating SWE-bench benchmark (backwards compat alias for lite)."""
         benchmark = create_benchmark("swe-bench")
         assert isinstance(benchmark, SWEBenchmark)
         assert benchmark.name == "swe-bench"
+        assert benchmark.dataset == "SWE-bench/SWE-bench_Lite"
+
+    def test_create_swebench_lite(self) -> None:
+        """Test creating SWE-bench Lite benchmark."""
+        benchmark = create_benchmark("swe-bench-lite")
+        assert isinstance(benchmark, SWEBenchmark)
+        assert benchmark.name == "swe-bench"
+        assert benchmark.dataset == "SWE-bench/SWE-bench_Lite"
+
+    def test_create_swebench_verified(self) -> None:
+        """Test creating SWE-bench Verified benchmark."""
+        benchmark = create_benchmark("swe-bench-verified")
+        assert isinstance(benchmark, SWEBenchmark)
+        assert benchmark.name == "swe-bench"
+        assert benchmark.dataset == "SWE-bench/SWE-bench_Verified"
+
+    def test_create_swebench_full(self) -> None:
+        """Test creating SWE-bench Full benchmark."""
+        benchmark = create_benchmark("swe-bench-full")
+        assert isinstance(benchmark, SWEBenchmark)
+        assert benchmark.name == "swe-bench"
+        assert benchmark.dataset == "SWE-bench/SWE-bench"
 
     def test_create_cybergym(self) -> None:
         """Test creating CyberGym benchmark."""

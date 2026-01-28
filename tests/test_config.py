@@ -225,7 +225,7 @@ dataset: "SWE-bench/SWE-bench_Lite"
             assert config.dataset == "SWE-bench/SWE-bench_Lite"
 
     def test_swe_bench_verified_dataset(self) -> None:
-        """Test SWE-bench Verified dataset configuration."""
+        """Test SWE-bench Verified dataset configuration (legacy approach)."""
         yaml_content = """
 mcp_server:
   command: npx
@@ -241,7 +241,7 @@ dataset: "SWE-bench/SWE-bench_Verified"
             assert config.dataset == "SWE-bench/SWE-bench_Verified"
 
     def test_swe_bench_full_dataset(self) -> None:
-        """Test SWE-bench full dataset configuration."""
+        """Test SWE-bench full dataset configuration (legacy approach)."""
         yaml_content = """
 mcp_server:
   command: npx
@@ -255,3 +255,51 @@ dataset: "SWE-bench/SWE-bench"
 
             config = load_config(f.name)
             assert config.dataset == "SWE-bench/SWE-bench"
+
+    def test_swe_bench_lite_benchmark(self) -> None:
+        """Test SWE-bench Lite benchmark selection (preferred approach)."""
+        yaml_content = """
+mcp_server:
+  command: npx
+  args: ["-y", "@modelcontextprotocol/server-filesystem", "{workdir}"]
+
+benchmark: "swe-bench-lite"
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            f.flush()
+
+            config = load_config(f.name)
+            assert config.benchmark == "swe-bench-lite"
+
+    def test_swe_bench_verified_benchmark(self) -> None:
+        """Test SWE-bench Verified benchmark selection (preferred approach)."""
+        yaml_content = """
+mcp_server:
+  command: npx
+  args: ["-y", "@modelcontextprotocol/server-filesystem", "{workdir}"]
+
+benchmark: "swe-bench-verified"
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            f.flush()
+
+            config = load_config(f.name)
+            assert config.benchmark == "swe-bench-verified"
+
+    def test_swe_bench_full_benchmark(self) -> None:
+        """Test SWE-bench Full benchmark selection (preferred approach)."""
+        yaml_content = """
+mcp_server:
+  command: npx
+  args: ["-y", "@modelcontextprotocol/server-filesystem", "{workdir}"]
+
+benchmark: "swe-bench-full"
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            f.flush()
+
+            config = load_config(f.name)
+            assert config.benchmark == "swe-bench-full"

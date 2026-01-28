@@ -4,33 +4,36 @@ mcpbr supports multiple software engineering benchmarks through a flexible abstr
 
 ## Overview
 
-| Benchmark | Type | Dataset | Evaluation | Pre-built Images |
-|-----------|------|---------|------------|------------------|
-| **SWE-bench** | Bug fixing | GitHub issues | Test suite pass/fail | Yes (most tasks) |
-| **CyberGym** | Security exploits | Vulnerabilities | Crash detection | No |
+| Benchmark | Tasks | Type | Evaluation | Pre-built Images |
+|-----------|-------|------|------------|------------------|
+| **swe-bench-lite** | 300 | Bug fixing | Test suite pass/fail | Yes (most tasks) |
+| **swe-bench-verified** | Subset | Bug fixing | Test suite pass/fail | Yes (most tasks) |
+| **swe-bench-full** | 2,294 | Bug fixing | Test suite pass/fail | Yes (most tasks) |
+| **cybergym** | Varies | Security exploits | Crash detection | No |
 
-## SWE-bench
+## SWE-bench Variants
 
 [SWE-bench](https://www.swebench.com/) is a benchmark of real-world software issues from GitHub repositories. The agent's task is to generate a patch that fixes the bug.
 
-### Dataset Variants
+mcpbr provides three SWE-bench variants as distinct benchmarks:
 
-SWE-bench offers three dataset variants with different characteristics:
-
-#### Lite (Default)
-- **Source**: [SWE-bench/SWE-bench_Lite](https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite)
+### swe-bench-lite (Default)
+- **Benchmark ID**: `swe-bench-lite` (or `swe-bench` for backwards compatibility)
+- **Dataset**: [SWE-bench/SWE-bench_Lite](https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite)
 - **Tasks**: 300 curated bug fixes from popular Python repositories
 - **Use Case**: Quick testing and evaluation, recommended for most users
 - **Repositories**: Django, Flask, Matplotlib, Pandas, Scikit-learn, SymPy, and more
 
-#### Verified
-- **Source**: [SWE-bench/SWE-bench_Verified](https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified)
+### swe-bench-verified
+- **Benchmark ID**: `swe-bench-verified`
+- **Dataset**: [SWE-bench/SWE-bench_Verified](https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified)
 - **Tasks**: Subset with manually validated test cases
 - **Use Case**: Higher quality evaluation with reliable tests, recommended for accurate benchmarking
 - **Quality**: Each task has been manually reviewed to ensure test correctness
 
-#### Full
-- **Source**: [SWE-bench/SWE-bench](https://huggingface.co/datasets/SWE-bench/SWE-bench)
+### swe-bench-full
+- **Benchmark ID**: `swe-bench-full`
+- **Dataset**: [SWE-bench/SWE-bench](https://huggingface.co/datasets/SWE-bench/SWE-bench)
 - **Tasks**: 2,294 tasks from the complete benchmark
 - **Use Case**: Comprehensive evaluation, research purposes
 
@@ -71,30 +74,28 @@ This ensures:
 
 ```bash
 # Run SWE-bench Lite (default - 300 tasks)
-mcpbr run -c config.yaml
+mcpbr run -c config.yaml -b swe-bench-lite
 
 # Run SWE-bench Verified (manually validated tests)
-mcpbr run -c config.yaml --verified
+mcpbr run -c config.yaml -b swe-bench-verified
 
-# Run full SWE-bench (2,294 tasks)
-mcpbr run -c config.yaml --dataset SWE-bench/SWE-bench
+# Run SWE-bench Full (2,294 tasks)
+mcpbr run -c config.yaml -b swe-bench-full
 
-# Run specific SWE-bench tasks
-mcpbr run -c config.yaml -t astropy__astropy-12907 -t django__django-11099
+# Run specific tasks
+mcpbr run -c config.yaml -b swe-bench-lite -t astropy__astropy-12907 -t django__django-11099
 
 # Run sample of tasks
-mcpbr run -c config.yaml -n 50
+mcpbr run -c config.yaml -b swe-bench-verified -n 50
 ```
 
 ### Configuration
 
 ```yaml
-benchmark: "swe-bench"
-
-# Dataset variants (choose one):
-dataset: "SWE-bench/SWE-bench_Lite"      # Default: 300 tasks, quick testing
-# dataset: "SWE-bench/SWE-bench_Verified"  # Manually validated, high quality
-# dataset: "SWE-bench/SWE-bench"           # Full: 2,294 tasks
+# Choose a SWE-bench variant:
+benchmark: "swe-bench-lite"      # Default: 300 tasks, quick testing
+# benchmark: "swe-bench-verified"  # Manually validated, high quality
+# benchmark: "swe-bench-full"      # Complete: 2,294 tasks
 
 sample_size: 25
 use_prebuilt_images: true  # Recommended
