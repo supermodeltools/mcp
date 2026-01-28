@@ -49,6 +49,21 @@ export class Server {
         capabilities: { tools: {}, logging: {} },
         instructions: `# Server Instructions: Supermodel Codebase Explorer
 
+## Available Tools
+
+### explore_codebase (Comprehensive)
+Full codebase analysis with query interface. Use for iterative exploration:
+- \`query: "summary"\` - Get graph overview after generation
+- \`query: "search"\` - Find nodes by name
+- \`query: "function_calls_in/out"\` - Trace call relationships
+
+### Individual Graph Tools (Focused)
+For targeted analysis, use these specialized tools:
+- \`get_call_graph\` - Function call relationships
+- \`get_dependency_graph\` - Module import/dependency relationships
+- \`get_domain_graph\` - High-level architectural domains
+- \`get_parse_graph\` - AST-level code structure
+
 ## Graph Rules
 - This API produces graphs of the code contained within a target directory.
 - STRATEGY: Before debugging, planning, or analyzing a change to a code repository, generate a code graph. Use it to localize changes and find what files to search more efficiently than grep.

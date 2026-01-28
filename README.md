@@ -609,14 +609,14 @@ node dist/index.js /path/to/repo
 
 ### Testing Tools Locally
 
-Use the included test script to verify the server and list available tools:
+Run the integration tests to verify the server and tools:
 
 ```bash
-# List all tools (no API key needed)
-node scripts/test-local.js
+# Run all tests including integration tests
+npm test
 
-# Test with a specific directory
-node scripts/test-local.js /path/to/your/repo
+# Run only integration tests
+npm test -- src/server.integration.test.ts
 ```
 
 ### Using MCP Inspector
