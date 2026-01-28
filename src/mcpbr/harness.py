@@ -1,6 +1,7 @@
 """Main evaluation harness orchestrating parallel task execution."""
 
 import asyncio
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -73,7 +74,10 @@ class EvaluationResults:
 
 
 def agent_result_to_dict(
-    result: AgentResult, eval_result: EvaluationResult | None, model_id: str
+    result: AgentResult,
+    eval_result: EvaluationResult | None,
+    model_id: str,
+    runtime_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Convert agent and evaluation results to dictionary.
 
@@ -81,6 +85,7 @@ def agent_result_to_dict(
         result: Agent result with token usage.
         eval_result: Evaluation result (if patch was generated).
         model_id: Model ID for cost calculation.
+        runtime_seconds: Wall-clock runtime in seconds (optional).
 
     Returns:
         Dictionary with agent results including cost information.
@@ -94,6 +99,10 @@ def agent_result_to_dict(
         "iterations": result.iterations,
         "tool_calls": result.tool_calls,
     }
+
+    # Add runtime if provided
+    if runtime_seconds is not None:
+        data["runtime_seconds"] = runtime_seconds
 
     # Calculate cost
     cost = calculate_cost(
@@ -326,6 +335,7 @@ async def _run_mcp_evaluation(
             cached_result["cache_hit"] = True
             return cached_result
 
+    start_time = time.time()
     env: TaskEnvironment | None = None
     try:
         env = await benchmark.create_environment(task, docker_manager)
@@ -354,7 +364,9 @@ async def _run_mcp_evaluation(
         else:
             eval_result = None
 
-        result = agent_result_to_dict(agent_result, eval_result, config.model)
+        end_time = time.time()
+        runtime_seconds = end_time - start_time
+        result = agent_result_to_dict(agent_result, eval_result, config.model, runtime_seconds)
 
         # Store in cache if enabled
         if cache and cache.enabled:
@@ -366,6 +378,8 @@ async def _run_mcp_evaluation(
     except asyncio.TimeoutError:
         # Note: The agent harness should have captured partial statistics in the AgentResult
         # before raising TimeoutError, but this is a fallback for unexpected timeout locations
+        end_time = time.time()
+        runtime_seconds = end_time - start_time
         cost = calculate_cost(config.model, 0, 0)
         return {
             "resolved": False,
@@ -376,8 +390,11 @@ async def _run_mcp_evaluation(
             "iterations": 0,
             "tool_calls": 0,
             "cost": cost if cost is not None else 0.0,
+            "runtime_seconds": runtime_seconds,
         }
     except Exception as e:
+        end_time = time.time()
+        runtime_seconds = end_time - start_time
         cost = calculate_cost(config.model, 0, 0)
         return {
             "resolved": False,
@@ -387,6 +404,7 @@ async def _run_mcp_evaluation(
             "iterations": 0,
             "tool_calls": 0,
             "cost": cost if cost is not None else 0.0,
+            "runtime_seconds": runtime_seconds,
         }
     finally:
         if env:
@@ -427,6 +445,7 @@ async def _run_baseline_evaluation(
             cached_result["cache_hit"] = True
             return cached_result
 
+    start_time = time.time()
     env: TaskEnvironment | None = None
     try:
         env = await benchmark.create_environment(task, docker_manager)
@@ -455,7 +474,9 @@ async def _run_baseline_evaluation(
         else:
             eval_result = None
 
-        result = agent_result_to_dict(agent_result, eval_result, config.model)
+        end_time = time.time()
+        runtime_seconds = end_time - start_time
+        result = agent_result_to_dict(agent_result, eval_result, config.model, runtime_seconds)
 
         # Store in cache if enabled
         if cache and cache.enabled:
@@ -467,6 +488,8 @@ async def _run_baseline_evaluation(
     except asyncio.TimeoutError:
         # Note: The agent harness should have captured partial statistics in the AgentResult
         # before raising TimeoutError, but this is a fallback for unexpected timeout locations
+        end_time = time.time()
+        runtime_seconds = end_time - start_time
         cost = calculate_cost(config.model, 0, 0)
         return {
             "resolved": False,
@@ -477,8 +500,11 @@ async def _run_baseline_evaluation(
             "iterations": 0,
             "tool_calls": 0,
             "cost": cost if cost is not None else 0.0,
+            "runtime_seconds": runtime_seconds,
         }
     except Exception as e:
+        end_time = time.time()
+        runtime_seconds = end_time - start_time
         cost = calculate_cost(config.model, 0, 0)
         return {
             "resolved": False,
@@ -488,6 +514,7 @@ async def _run_baseline_evaluation(
             "iterations": 0,
             "tool_calls": 0,
             "cost": cost if cost is not None else 0.0,
+            "runtime_seconds": runtime_seconds,
         }
     finally:
         if env:
