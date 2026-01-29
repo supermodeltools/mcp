@@ -1,7 +1,13 @@
+/**
+ * MCP Server implementation for the Supermodel codebase analysis tools.
+ * Provides JSON-RPC handlers for code graph generation and exploration.
+ * @module server
+ */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
 import createSupermodelGraphTool from './tools/create-supermodel-graph';
+import { graphTools } from './tools/graph-tools';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';
@@ -46,53 +52,32 @@ export class Server {
       },
       {
         capabilities: { tools: {}, logging: {} },
-        instructions: `# Server Instructions: Supermodel Codebase Explorer
+        instructions: `# Supermodel: Code Graph Tools
 
-## Graph Rules
-- This API produces graphs of the code contained within a target directory.
-- STRATEGY: Before debugging, planning, or analyzing a change to a code repository, generate a code graph. Use it to localize changes and find what files to search more efficiently than grep.
+Generate code graphs to understand a codebase before making changes.
 
-## Debugging Strategy
-1. Generate a code graph of the given repository or a subset.
-2. Analyze the nodes and relationships which appear to be related to your issue.
-3. Analyze the broader context of these nodes in relationships within their domain and subdomain.
-4. Use the graph like a diagram to navigate the codebase more efficiently than raw grep and to analyze the potential blast radius of any change.
-  
-## Planning Strategy
-1. Generate a code graph of the given repository or a subset.
-2. Analyze relationships like dependencies, calls, and inheritance to identify the potential blast radius of a proposed change.
-3. Examine other elements of the same Domain and Subdomain to look for patterns including best practices or anti-patterns.
-4. Look at the nodes you plan to change and find their physical locations, allowing you to analyze more efficiently than blind grepping.
+## Recommended Workflow
 
-## Analysis Strategy
-1. Generate a code graph of the given repository or a subset.
-2. Analyze the system domains to understand the high-level system architecture.
-3. Examine leaf nodes to see the structure of the broader tree.
-4. Use the graph like a map to navigate the codebase more efficiently than blind grepping.
+1. Start with \`get_domain_graph\` to understand architecture
+2. Use \`get_call_graph\` or \`get_dependency_graph\` to drill into specific areas
+3. Use \`get_parse_graph\` only when you need full structural detail
 
-## Performance Optimization
+Node IDs are consistent across all graph types. A function ID from \`get_domain_graph\` can be looked up in \`get_call_graph\` results to find its callers.
 
-For localized bugs:
-1. Identify the affected subsystem from the issue description
-2. Analyze only that subdirectory (e.g., \`django/db\` instead of full repo)
-3. This is faster, uses less memory, and avoids ZIP size limits
+## Performance
 
-Example:
-- Full repo: directory="/repo" → 180MB, 50k nodes
-- Subsystem: directory="/repo/django/db" → 15MB, 3k nodes
+- First call takes 30+ seconds (API processing time)
+- Analyze subdirectories for faster results: \`src/auth\` instead of full repo
+- Use \`jq_filter\` to extract only the data you need
 
-## Error Handling
+## explore_codebase
 
-When a tool call returns an error, check the structured error fields:
-- \`error.recoverable: true\` → wait briefly and retry the request
-- \`error.reportable: true\` → this is a server-side bug, not your fault
+Returns the complete graph with all data combined. Useful for comprehensive exports or integration with external tools. For iterative analysis, prefer the individual graph tools above.
 
-If you receive a reportable error and have GitHub access:
-1. Search the \`error.repo\` issues for the \`error.code\` to avoid duplicates
-2. If no existing issue, open one with the error code, message, and any reproduction context
-3. If you can identify and fix the root cause, fork the repo and open a PR
+## Errors
 
-This helps the maintainers fix bugs faster and avoids wasting your iteration budget on issues you cannot work around locally.`,
+- \`error.recoverable: true\` → retry after brief wait
+- \`error.reportable: true\` → server bug, can be reported`,
       },
     );
 
@@ -118,19 +103,35 @@ This helps the maintainers fix bugs faster and avoids wasting your iteration bud
   }
 
   private setupHandlers() {
+    // Collect all tools: the main explore_codebase tool plus individual graph tools
+    const allTools = [
+      createSupermodelGraphTool,
+      ...graphTools,
+    ];
+
+    // Create a map for quick handler lookup, checking for duplicates
+    const toolMap = new Map<string, typeof allTools[0]>();
+    for (const t of allTools) {
+      if (toolMap.has(t.tool.name)) {
+        throw new Error(`Duplicate tool name: ${t.tool.name}`);
+      }
+      toolMap.set(t.tool.name, t);
+    }
+
     this.server.server.setRequestHandler(ListToolsRequestSchema, async () => {
       return {
-        tools: [createSupermodelGraphTool.tool],
+        tools: allTools.map(t => t.tool),
       };
     });
 
     this.server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
-      
-      if (name === createSupermodelGraphTool.tool.name) {
-        return createSupermodelGraphTool.handler(this.client, args, this.defaultWorkdir);
+
+      const tool = toolMap.get(name);
+      if (tool) {
+        return tool.handler(this.client, args, this.defaultWorkdir);
       }
-      
+
       throw new Error(`Unknown tool: ${name}`);
     });
   }
