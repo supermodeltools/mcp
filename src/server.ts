@@ -52,57 +52,32 @@ export class Server {
       },
       {
         capabilities: { tools: {}, logging: {} },
-        instructions: `# Supermodel Codebase Explorer
+        instructions: `# Supermodel: Code Graph Tools
 
-## Choosing the Right Tool
+Generate code graphs to understand a codebase before making changes.
 
-| Situation | Tool | Why |
-|-----------|------|-----|
-| New codebase, need overview | \`get_domain_graph\` | Shows domains, responsibilities, architecture |
-| Debugging function calls | \`get_call_graph\` | Function nodes + calls relationships |
-| Understanding imports | \`get_dependency_graph\` | File nodes + IMPORTS relationships |
-| Full code structure | \`get_parse_graph\` | All nodes and structural relationships |
-| Iterative exploration | \`explore_codebase\` | Built-in queries for search and navigation |
+## Recommended Workflow
 
-## Available Tools
+1. Start with \`get_domain_graph\` to understand architecture
+2. Use \`get_call_graph\` or \`get_dependency_graph\` to drill into specific areas
+3. Use \`get_parse_graph\` only when you need full structural detail
 
-### Individual Graph Tools
+Node IDs are consistent across all graph types. A function ID from \`get_domain_graph\` can be looked up in \`get_call_graph\` results to find its callers.
 
-**\`get_domain_graph\`** - High-level architecture
-- Returns: Domains with descriptions, responsibilities, subdomains, file/function assignments
-- Best for: Understanding how a codebase is organized
+## Performance
 
-**\`get_call_graph\`** - Function call relationships
-- Returns: Function nodes with "calls" relationships
-- Best for: Debugging, tracing execution, finding callers/callees
+- First call takes 30+ seconds (API processing time)
+- Analyze subdirectories for faster results: \`src/auth\` instead of full repo
+- Use \`jq_filter\` to extract only the data you need
 
-**\`get_dependency_graph\`** - Import relationships
-- Returns: File nodes with "IMPORTS" relationships
-- Best for: Finding circular deps, understanding module coupling
+## explore_codebase
 
-**\`get_parse_graph\`** - Full code structure
-- Returns: All nodes (File, Class, Function, Type) and structural relationships
-- Best for: Comprehensive analysis, detailed refactoring
+Returns the complete graph with all data combined. Useful for comprehensive exports or integration with external tools. For iterative analysis, prefer the individual graph tools above.
 
-### explore_codebase (with queries)
-
-Full analysis with built-in query interface:
-- \`query: "summary"\` - Graph statistics
-- \`query: "search", searchText: "..."\` - Find nodes by name
-- \`query: "list_nodes", labels: [...]\` - Filter by type
-- \`query: "function_calls_in/out", targetId: "..."\` - Trace calls
-- \`query: "graph_status"\` - Check cache without API call
-
-## Tips
-
-- **Start with domain graph** for architecture overview
-- **Target subdirectories** when possible (faster, smaller output)
-- **Use jq_filter** to extract specific data
-
-## Error Handling
+## Errors
 
 - \`error.recoverable: true\` → retry after brief wait
-- \`error.reportable: true\` → server bug, report to \`error.repo\``,
+- \`error.reportable: true\` → server bug, can be reported`,
       },
     );
 
