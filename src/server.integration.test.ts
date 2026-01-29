@@ -143,7 +143,7 @@ describe('MCP Server Integration', () => {
       });
 
       expect(result.instructions).toBeDefined();
-      expect(result.instructions).toContain('Supermodel Codebase Explorer');
+      expect(result.instructions).toContain('Supermodel: Code Graph Tools');
     });
   });
 
