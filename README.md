@@ -378,6 +378,8 @@ Generate an AST-level parse graph with fine-grained code structure.
 
 **Tip:** Start with `get_domain_graph` for a quick architecture overview, then drill down with `get_call_graph` or `get_dependency_graph` for specific areas.
 
+> **Note:** All graph tools accept a `directory` parameter and an optional `jq_filter`. If you start the server with a default working directory (`node dist/index.js /path/to/repo`), the `directory` argument can be omitted from tool calls.
+
 ## Tool Performance & Timeout Requirements
 
 The `explore_codebase` tool analyzes your entire repository to build a comprehensive code graph. Analysis time scales with repository size and complexity.
