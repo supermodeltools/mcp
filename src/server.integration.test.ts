@@ -92,6 +92,7 @@ describe('MCP Server Integration', () => {
     });
 
     // Wait for server to be ready with retry loop
+    let ready = false;
     const startTime = Date.now();
     while (Date.now() - startTime < SERVER_STARTUP_TIMEOUT_MS) {
       // Check if server has exited unexpectedly
@@ -102,8 +103,17 @@ describe('MCP Server Integration', () => {
       await new Promise(r => setTimeout(r, STARTUP_POLL_INTERVAL_MS));
       // Server is ready when stdin is writable
       if (server.stdin?.writable) {
+        ready = true;
         break;
       }
+    }
+
+    if (!ready) {
+      const exitInfo = server.exitCode !== null ? `exit code ${server.exitCode}` : 'still running';
+      throw new Error(
+        `Server not ready after ${SERVER_STARTUP_TIMEOUT_MS}ms (${exitInfo}). ` +
+        `Polled every ${STARTUP_POLL_INTERVAL_MS}ms but stdin never became writable.`
+      );
     }
   });
 
