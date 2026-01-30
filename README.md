@@ -1,3 +1,50 @@
+# ⭐ Supermodel MCP Server - Task-Specific Tools Variant
+
+**This is an experimental variant featuring task-specific query tools for focused code analysis.**
+
+[![npm](https://img.shields.io/npm/v/@supermodeltools/mcp-server)](https://www.npmjs.com/package/@supermodeltools/mcp-server)
+[![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
+
+## 🎯 What's Different?
+
+This variant adds **four specialized query tools** designed to provide focused, actionable answers for common code exploration tasks:
+
+### New Tools
+
+1. **`find_call_sites`** - Where is function X called?
+   - Fast lookup of all call locations
+   - Returns file paths, line numbers, and context
+
+2. **`trace_call_chain`** - What's the path from function A to B?
+   - BFS-based path finding
+   - Shows complete call chain with intermediate functions
+
+3. **`find_definition`** - Where is symbol X defined?
+   - O(1) symbol lookup
+   - Returns exact definition location
+
+4. **`trace_data_flow`** - How does parameter X flow through calls?
+   - Follows variables through call chains
+   - Tracks parameter propagation
+
+### Performance Results
+
+Evaluated on 10 SWE-bench Lite tasks:
+- ✅ **40% resolution rate** (4/10 tasks)
+- ✅ **2x better** than edge-metadata approach (20% resolution)
+- ✅ **9.2pp better Bash success rate** (82.7% vs 73.5%)
+- ✅ **34% fewer tool failures** (8.4% vs 12.9% failure rate)
+- ✅ **Same efficiency** as baseline (32.1 avg tool calls/task)
+
+## 📊 Evaluation Data
+
+See the parent repo for complete evaluation results:
+- [10-Task Comparison](https://github.com/supermodeltools/mcp/blob/main/10_TASK_COMPARISON.md)
+- [Raw Data](https://github.com/supermodeltools/mcp/blob/main/RAW_DATA_10_TASKS.md)
+- [Full Logs](https://github.com/supermodeltools/mcp/blob/main/evaluation_logs_10tasks.tar.gz)
+
+---
+
 # Supermodel MCP Server
 
 [![npm](https://img.shields.io/npm/v/@supermodeltools/mcp-server)](https://www.npmjs.com/package/@supermodeltools/mcp-server)
