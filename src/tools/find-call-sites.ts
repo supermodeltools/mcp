@@ -10,8 +10,8 @@ import { CodeGraphNode } from '../cache/graph-types';
 const FindCallSitesArgsSchema = z.object({
   path: z.string().describe('Repository path'),
   function_name: z.string().describe('Name of function to find call sites for'),
-  include_context: z.boolean().optional().default(true).describe('Include surrounding code context'),
-  max_results: z.number().optional().default(10).describe('Maximum number of results to return'),
+  include_context: z.boolean().optional().describe('Include surrounding code context'),
+  max_results: z.number().optional().describe('Maximum number of results to return'),
 });
 
 type FindCallSitesArgs = z.infer<typeof FindCallSitesArgsSchema>;
@@ -41,7 +41,7 @@ export interface FindCallSitesResponse {
  * Find all places where a function is called
  */
 export async function findCallSites(args: FindCallSitesArgs): Promise<FindCallSitesResponse> {
-  const { path, function_name, include_context, max_results } = args;
+  const { path, function_name, include_context = true, max_results = 10 } = args;
 
   // Get cached graph
   const cacheKey = getCacheKey(path);

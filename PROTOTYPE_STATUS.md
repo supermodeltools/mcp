@@ -41,30 +41,43 @@ Lightweight tool that answers: "Where is this function called?"
 }
 ```
 
+## What's Complete
+
+### ✅ Implemented Tools
+- [x] `find_call_sites`: Find where a function is called (COMPLETE)
+- [x] `trace_call_chain`: Find path from function A to function B (COMPLETE)
+- [x] `find_definition`: Quick lookup of where something is defined (COMPLETE)
+- [x] `trace_data_flow`: Follow parameter through call chain (COMPLETE)
+
+### ✅ Integration
+- [x] Register tools with MCP server (`src/server.ts`)
+- [x] Add to tool list in system prompt
+- [x] Cache system supports efficient lookups (nameIndex, callAdj, etc.)
+
+### ✅ Testing
+- [x] Unit tests for `find_call_sites`
+- [x] Unit tests for `trace_call_chain`
+- [x] Unit tests for `find_definition`
+- [x] Unit tests for `trace_data_flow`
+- [x] Tests use mock graphs for isolation
+- [x] Tests cover error cases (not found, multiple matches)
+
 ## What's Next
 
-### TODO: Additional Tools
-- [ ] `trace_call_chain`: Find path from function A to function B
-- [ ] `find_definition`: Quick lookup of where something is defined
+### TODO: Additional Tools (Future)
 - [ ] `find_implementations`: What implements an interface/base class
-- [ ] `trace_data_flow`: Follow parameter through call chain
 - [ ] `find_error_handlers`: Where are errors caught for this function
+- [ ] `find_dependencies`: What does this file/function depend on
 
-### TODO: Integration
-- [ ] Register tools with MCP server (`src/server.ts`)
-- [ ] Add to tool list in system prompt
-- [ ] Update cache to support efficient lookups
-- [ ] Add caching layer for repeated queries
-
-### TODO: Performance
+### TODO: Performance Validation
 - [ ] Benchmark query time (<5 seconds target)
 - [ ] Measure output size (<10KB target)
 - [ ] Test on large graphs (>10k functions)
 
-### TODO: Testing
-- [ ] Unit tests for each tool
-- [ ] Integration tests with mock graphs
-- [ ] Real-world testing on SWE-bench tasks
+### TODO: Real-World Testing
+- [ ] Test on actual repositories
+- [ ] Integration tests with real API calls
+- [ ] SWE-bench task validation
 
 ## Tools Planned
 

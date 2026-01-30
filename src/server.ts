@@ -8,6 +8,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
 import createSupermodelGraphTool from './tools/create-supermodel-graph';
 import { graphTools } from './tools/graph-tools';
+import { taskQueryTools } from './tools/task-query-tools';
 import featureRequestTool from './tools/feature-request';
 import bugReportTool from './tools/report-bug';
 import { ClientContext } from './types';
@@ -65,6 +66,7 @@ Generate code graphs to understand a codebase before making changes.
 - **Need to understand imports/dependencies?** → \`get_dependency_graph\` (file nodes + "IMPORTS" relationships)
 - **Need full code structure (classes, types, functions)?** → \`get_parse_graph\` (all nodes + structural relationships)
 - **Need everything in one call?** → \`explore_codebase\` (complete graph with built-in query engine)
+- **Need a focused answer about a specific function/symbol?** → Task-specific query tools (see below)
 
 Node IDs are consistent across all graph types. A function ID from \`get_domain_graph\` works in \`get_call_graph\` results.
 
@@ -86,12 +88,24 @@ All graph tools accept \`directory\` and \`jq_filter\`. Both are optional:
 
 \`explore_codebase\` caches graphs in memory (1-hour TTL, LRU eviction). The first call hits the API (30+ seconds); subsequent queries on the same directory are instant. Use \`query: "graph_status"\` to check if a graph is cached before making API calls. Regenerate after code changes by calling without a query. The individual graph tools (\`get_call_graph\`, etc.) do not use the cache — each call hits the API.
 
+## Task-Specific Query Tools
+
+After generating a graph, use these lightweight tools for focused queries:
+
+- \`find_call_sites\`: Find where a function is called (<5s, <10KB)
+- \`trace_call_chain\`: Find path from function A to B (<5s, <10KB)
+- \`find_definition\`: Locate where a symbol is defined (<5s, <10KB)
+- \`trace_data_flow\`: Follow how data flows through parameters (<5s, <10KB)
+
+These tools require a graph to be cached first (via any graph generation tool).
+
 ## Performance
 
 - First API call takes 30+ seconds (complex repos can take 10+ minutes)
 - Analyze subdirectories for faster results: \`src/auth\` instead of full repo
 - Use \`jq_filter\` to extract only the data you need
 - With \`explore_codebase\`, use the query engine instead of re-fetching
+- Task query tools are fast (<5s) after initial graph generation
 
 ## Common Mistakes
 
@@ -149,10 +163,11 @@ If you have an idea for a feature that would make the Supermodel MCP server more
   }
 
   private setupHandlers() {
-    // Collect all tools: the main explore_codebase tool plus individual graph tools
+    // Collect all tools: the main explore_codebase tool plus individual graph tools plus task query tools
     const allTools = [
       createSupermodelGraphTool,
       ...graphTools,
+      ...taskQueryTools,
       featureRequestTool,
       bugReportTool,
     ];
