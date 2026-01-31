@@ -60,7 +60,7 @@ class TestParseTestList:
     def test_malformed_json(self):
         """Test parsing malformed JSON (should fall back gracefully)."""
         # Missing quotes
-        result = parse_test_list('[test1, test2]')
+        result = parse_test_list("[test1, test2]")
         assert result == ["test1", "test2"]
 
         # Single quotes (valid Python but not JSON)
