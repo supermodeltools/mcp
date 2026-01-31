@@ -186,10 +186,14 @@ async def run_tests(
 
 
 def _build_test_command(test: str, uses_prebuilt: bool = False) -> str:
-    """Build a pytest command for the given test identifier.
+    """Build a test command for the given test identifier.
+
+    Supports both pytest and Django test formats:
+    - Pytest: "test_file.py::test_func" or "test_file.py"
+    - Django: "module.tests.TestClass.test_method"
 
     Args:
-        test: Test identifier (e.g., "test_file.py::test_func" or "test_file.py")
+        test: Test identifier (e.g., "test_file.py::test_func" or "module.tests.TestClass.test_method")
         uses_prebuilt: If True, activate the testbed conda environment first.
 
     Returns:
@@ -201,12 +205,37 @@ def _build_test_command(test: str, uses_prebuilt: bool = False) -> str:
     else:
         activate = ""
 
+    # Check if this is a pytest format test (contains "::" or ends with .py)
     if "::" in test:
         return f"{activate}python -m pytest {test} -xvs 2>&1"
     elif test.endswith(".py"):
         return f"{activate}python -m pytest {test} -xvs 2>&1"
-    else:
-        return f"{activate}python -m pytest -k '{test}' -xvs 2>&1"
+
+    # Check if this is a Django test format (dot-separated, no "::")
+    # Django tests look like: "module.tests.TestClass.test_method"
+    # or "module.submodule.tests.TestClass.test_method"
+    if "." in test and "::" not in test:
+        # Extract the test module (everything before the test class)
+        # Django test modules typically end with .tests or start with test_
+        parts = test.split(".")
+
+        # Find where the test module ends (before the TestClass)
+        # Look for parts that are "tests" or start with "test_"
+        test_module_parts = []
+        for i, part in enumerate(parts):
+            # Capital letter at start typically indicates a class name
+            if part[0].isupper():
+                break
+            test_module_parts.append(part)
+
+        # If we found at least one module part, this is a Django test
+        if test_module_parts:
+            test_module = ".".join(test_module_parts)
+            # Django uses runtests.py in the tests directory
+            return f"{activate}cd /testbed/tests && ./runtests.py {test_module} 2>&1"
+
+    # Fallback to pytest with -k flag for any other format
+    return f"{activate}python -m pytest -k '{test}' -xvs 2>&1"
 
 
 async def _apply_test_patch(
