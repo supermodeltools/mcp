@@ -129,6 +129,8 @@ class TaskEnvironment:
     instance_id: str
     uses_prebuilt: bool = field(default=False)
     claude_cli_installed: bool = field(default=False)
+    _temp_dir: tempfile.TemporaryDirectory[str] | None = field(default=None, repr=False)
+    _manager: "DockerEnvironmentManager | None" = field(default=None, repr=False)
 
     async def exec_command(
         self,
@@ -281,12 +283,28 @@ class TaskEnvironment:
         return Path(full_path).read_text()
 
     async def cleanup(self) -> None:
-        """Stop and remove the container."""
+        """Stop and remove the container and clean up temp directory.
+
+        This aggressively cleans up resources immediately after task completion
+        to prevent disk space exhaustion when running many tasks.
+        """
+        # Stop and remove container
         try:
             self.container.stop(timeout=5)
             self.container.remove(force=True)
         except Exception:
             pass
+
+        # Clean up temp directory immediately
+        if self._temp_dir is not None:
+            try:
+                self._temp_dir.cleanup()
+            except Exception:
+                pass
+
+            # Remove from manager's list to avoid double cleanup
+            if self._manager is not None and self._temp_dir in self._manager._temp_dirs:
+                self._manager._temp_dirs.remove(self._temp_dir)
 
 
 class DockerEnvironmentManager:
@@ -436,6 +454,8 @@ class DockerEnvironmentManager:
             instance_id=instance_id,
             uses_prebuilt=uses_prebuilt,
             claude_cli_installed=False,
+            _temp_dir=temp_dir,
+            _manager=self,
         )
 
         if uses_prebuilt:
