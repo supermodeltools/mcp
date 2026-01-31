@@ -7,6 +7,7 @@ import logging
 import os
 import signal
 import tempfile
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -404,26 +405,44 @@ class DockerEnvironmentManager:
         container_workdir = "/testbed" if uses_prebuilt else "/workspace"
 
         def _create_container() -> Container:
-            container = self.client.containers.run(
-                image_name,
-                command="tail -f /dev/null",
-                name=container_name,
-                detach=True,
-                platform="linux/amd64" if uses_prebuilt else None,
-                network_mode="bridge",  # Enable network for API calls
-                volumes={
-                    host_workdir: {"bind": "/workspace", "mode": "rw"},
-                },
-                working_dir=container_workdir,
-                remove=False,
-                labels={
-                    MCPBR_LABEL: "true",
-                    MCPBR_INSTANCE_LABEL: str(instance_id),
-                    MCPBR_SESSION_LABEL: self._session_id,
-                    MCPBR_TIMESTAMP_LABEL: self._session_timestamp,
-                },
-            )
-            return container
+            max_retries = 3
+            base_delay = 1  # Start with 1 second delay
+
+            for attempt in range(max_retries + 1):
+                try:
+                    container = self.client.containers.run(
+                        image_name,
+                        command="tail -f /dev/null",
+                        name=container_name,
+                        detach=True,
+                        platform="linux/amd64" if uses_prebuilt else None,
+                        network_mode="bridge",  # Enable network for API calls
+                        volumes={
+                            host_workdir: {"bind": "/workspace", "mode": "rw"},
+                        },
+                        working_dir=container_workdir,
+                        remove=False,
+                        labels={
+                            MCPBR_LABEL: "true",
+                            MCPBR_INSTANCE_LABEL: str(instance_id),
+                            MCPBR_SESSION_LABEL: self._session_id,
+                            MCPBR_TIMESTAMP_LABEL: self._session_timestamp,
+                        },
+                    )
+                    return container
+                except docker.errors.APIError as e:
+                    # Only retry on 500 errors (transient Docker daemon issues)
+                    if hasattr(e, "response") and e.response.status_code == 500:
+                        if attempt < max_retries:
+                            delay = base_delay * (2**attempt)  # Exponential backoff: 1s, 2s, 4s
+                            logger.warning(
+                                f"Docker API error (attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                                f"Retrying in {delay}s..."
+                            )
+                            time.sleep(delay)
+                            continue
+                    # Re-raise for non-500 errors or after max retries
+                    raise
 
         loop = asyncio.get_event_loop()
         container = await loop.run_in_executor(None, _create_container)
