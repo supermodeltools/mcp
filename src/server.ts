@@ -8,6 +8,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
 import createSupermodelGraphTool from './tools/create-supermodel-graph';
 import { graphTools } from './tools/graph-tools';
+import featureRequestTool from './tools/feature-request';
+import bugReportTool from './tools/report-bug';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';
@@ -77,7 +79,27 @@ Returns the complete graph with all data combined. Useful for comprehensive expo
 ## Errors
 
 - \`error.recoverable: true\` → retry after brief wait
-- \`error.reportable: true\` → server bug, can be reported`,
+- \`error.reportable: true\` → server bug, can be reported
+
+## Feedback: Feature Requests & Bug Reports
+
+If you have an idea for a feature that would make the Supermodel MCP server more useful, or if you encounter a bug or unexpected behavior with any tool or with the underlying Supermodel API, you can open an issue directly on the supermodeltools/mcp GitHub repository using the \`request_feature\` and \`report_bug\` tools. The Supermodel team reviews and responds to all submitted issues.
+
+**Setup:** These tools require a \`GITHUB_TOKEN\` environment variable with permission to create issues on public repositories. To set this up:
+1. Create a GitHub personal access token at https://github.com/settings/tokens with the \`public_repo\` scope.
+2. Set the token as an environment variable: \`export GITHUB_TOKEN=ghp_your_token_here\`
+3. Restart the MCP server so it picks up the new environment variable.
+
+**When to use \`request_feature\`:**
+- You think a new tool or query type would be helpful
+- An existing tool is missing a capability you need
+- You have an idea to improve the developer experience
+
+**When to use \`report_bug\`:**
+- A tool returned an error that seems incorrect or unexpected
+- Results don't match what the tool description promises
+- You hit a crash, timeout, or other failure that seems like a server issue
+- The Supermodel API returned malformed or unexpected data`,
       },
     );
 
@@ -107,6 +129,8 @@ Returns the complete graph with all data combined. Useful for comprehensive expo
     const allTools = [
       createSupermodelGraphTool,
       ...graphTools,
+      featureRequestTool,
+      bugReportTool,
     ];
 
     // Create a map for quick handler lookup, checking for duplicates
