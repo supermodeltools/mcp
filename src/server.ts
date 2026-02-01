@@ -58,28 +58,52 @@ export class Server {
 
 Generate code graphs to understand a codebase before making changes.
 
-## Recommended Workflow
+## Choosing a Tool
 
-1. Start with \`get_domain_graph\` to understand architecture
-2. Use \`get_call_graph\` or \`get_dependency_graph\` to drill into specific areas
-3. Use \`get_parse_graph\` only when you need full structural detail
+- **Need architecture overview?** → \`get_domain_graph\` (smallest output, fastest to read)
+- **Need to trace function calls?** → \`get_call_graph\` (function nodes + "calls" relationships)
+- **Need to understand imports/dependencies?** → \`get_dependency_graph\` (file nodes + "IMPORTS" relationships)
+- **Need full code structure (classes, types, functions)?** → \`get_parse_graph\` (all nodes + structural relationships)
+- **Need everything in one call?** → \`explore_codebase\` (complete graph with built-in query engine)
 
-Node IDs are consistent across all graph types. A function ID from \`get_domain_graph\` can be looked up in \`get_call_graph\` results to find its callers.
+Node IDs are consistent across all graph types. A function ID from \`get_domain_graph\` works in \`get_call_graph\` results.
+
+## What Each Tool Returns
+
+- \`get_domain_graph\`: Domains → { name, description, responsibilities, subdomains, files, functions, classes }
+- \`get_call_graph\`: Functions → { name, filePath, startLine, endLine } with "calls" relationships
+- \`get_dependency_graph\`: Files → { name, filePath, language } with "IMPORTS" relationships
+- \`get_parse_graph\`: All node types (File, Directory, Class, Function, Type) with structural relationships (CONTAINS, DEFINES, DECLARES, IMPORTS)
+- \`explore_codebase\`: Full graph (all of the above combined) with a query engine for filtering
+
+## Parameters
+
+All graph tools accept \`directory\` and \`jq_filter\`. Both are optional:
+- \`directory\`: Path to analyze. **Omit this** if the MCP server was started with a default workdir — it will use that automatically. Pass a subdirectory (e.g. \`src/auth\`) for faster results.
+- \`jq_filter\`: Optional jq expression to extract specific data from the response.
+
+## Caching
+
+\`explore_codebase\` caches graphs in memory (1-hour TTL, LRU eviction). The first call hits the API (30+ seconds); subsequent queries on the same directory are instant. Use \`query: "graph_status"\` to check if a graph is cached before making API calls. Regenerate after code changes by calling without a query. The individual graph tools (\`get_call_graph\`, etc.) do not use the cache — each call hits the API.
 
 ## Performance
 
-- First call takes 30+ seconds (API processing time)
+- First API call takes 30+ seconds (complex repos can take 10+ minutes)
 - Analyze subdirectories for faster results: \`src/auth\` instead of full repo
 - Use \`jq_filter\` to extract only the data you need
+- With \`explore_codebase\`, use the query engine instead of re-fetching
 
-## explore_codebase
+## Common Mistakes
 
-Returns the complete graph with all data combined. Useful for comprehensive exports or integration with external tools. For iterative analysis, prefer the individual graph tools above.
+- **Don't analyze the full repo when you only need one module.** Pass a subdirectory to \`directory\`.
+- **Don't use \`explore_codebase\` when you only need call or dependency data.** The individual tools return smaller, focused results.
+- **Don't re-fetch when the graph is cached.** Use \`explore_codebase\` with \`query: "graph_status"\` to check first.
+- **Don't forget \`jq_filter\`.** Large graphs can be megabytes — filter to what you need.
 
 ## Errors
 
-- \`error.recoverable: true\` → retry after brief wait
-- \`error.reportable: true\` → server bug, can be reported
+- \`error.recoverable: true\` → retry after a brief wait
+- \`error.reportable: true\` → likely a server bug, consider filing with \`report_bug\`
 
 ## Feedback: Feature Requests & Bug Reports
 
