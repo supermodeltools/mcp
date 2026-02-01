@@ -13,6 +13,7 @@ import * as logger from './logger';
 
 export const GITHUB_REPO = 'supermodeltools/mcp';
 export const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/issues`;
+export const GITHUB_FETCH_TIMEOUT_MS = 15_000;
 
 export interface GitHubIssuePayload {
   title: string;
@@ -212,6 +213,9 @@ export async function createGitHubIssue(
 
   logger.debug(`[${toolName}] Creating issue:`, payload.title);
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GITHUB_FETCH_TIMEOUT_MS);
+
   try {
     const response = await fetch(GITHUB_API_URL, {
       method: 'POST',
@@ -221,6 +225,7 @@ export async function createGitHubIssue(
         'Content-Type': 'application/json',
         'X-GitHub-Api-Version': '2022-11-28',
       },
+      signal: controller.signal,
       body: JSON.stringify(body),
     });
 
@@ -248,5 +253,7 @@ export async function createGitHubIssue(
       recoverable: true,
       suggestion: 'Check network connectivity and retry.',
     });
+  } finally {
+    clearTimeout(timeout);
   }
 }

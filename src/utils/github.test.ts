@@ -2,6 +2,7 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 import {
   GITHUB_REPO,
   GITHUB_API_URL,
+  GITHUB_FETCH_TIMEOUT_MS,
   validateGitHubToken,
   validateRequiredString,
   validateOptionalString,
@@ -31,6 +32,10 @@ describe('github utils', () => {
 
     it('should export the correct API URL', () => {
       expect(GITHUB_API_URL).toBe('https://api.github.com/repos/supermodeltools/mcp/issues');
+    });
+
+    it('should export a fetch timeout constant', () => {
+      expect(GITHUB_FETCH_TIMEOUT_MS).toBe(15_000);
     });
   });
 
@@ -622,6 +627,41 @@ describe('github utils', () => {
         'https://api.github.com/repos/supermodeltools/mcp/issues',
         expect.any(Object),
       );
+    });
+
+    it('should pass an AbortSignal to fetch', async () => {
+      process.env.GITHUB_TOKEN = 'test-token';
+
+      (global.fetch as jest.Mock<typeof fetch>).mockResolvedValue({
+        ok: true,
+        json: async () => ({ html_url: '', number: 1, title: '' }),
+      } as Response);
+
+      await createGitHubIssue('test_tool', {
+        title: 'Test',
+        body: 'Body',
+      }, 'Success');
+
+      const callArgs = (global.fetch as jest.Mock<typeof fetch>).mock.calls[0];
+      const fetchOptions = callArgs[1] as RequestInit;
+      expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('should handle AbortError from timeout as network error', async () => {
+      process.env.GITHUB_TOKEN = 'test-token';
+
+      const abortError = new DOMException('The operation was aborted', 'AbortError');
+      (global.fetch as jest.Mock<typeof fetch>).mockRejectedValue(abortError);
+
+      const result = await createGitHubIssue('test_tool', {
+        title: 'Test',
+        body: 'Body',
+      }, 'Success');
+
+      expect(result.isError).toBe(true);
+      const error = JSON.parse((result.content[0] as any).text);
+      expect(error.error.code).toBe('GITHUB_NETWORK_ERROR');
+      expect(error.error.recoverable).toBe(true);
     });
   });
 });
