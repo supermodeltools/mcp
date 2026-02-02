@@ -366,6 +366,71 @@ Generate an AST-level parse graph with fine-grained code structure.
 | `directory` | string | Yes | Path to repository directory |
 | `jq_filter` | string | No | jq filter for custom data extraction |
 
+### Task-Specific Query Tools
+
+After generating a graph with any of the tools above, use these lightweight tools for focused queries. They run against the cached graph and return small, targeted results (<10KB, <5s).
+
+#### `find_call_sites`
+
+Find all locations where a specific function is called.
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `path` | string | Yes | Path that was previously analyzed |
+| `function_name` | string | Yes | Name of the function to find call sites for |
+| `include_context` | boolean | No | Include surrounding code context |
+| `max_results` | number | No | Maximum number of results to return |
+
+#### `trace_call_chain`
+
+Find the shortest call path from function A to function B using BFS.
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `path` | string | Yes | Path that was previously analyzed |
+| `from_function` | string | Yes | Starting function name |
+| `to_function` | string | Yes | Target function name |
+| `max_depth` | number | No | Maximum search depth |
+
+#### `find_definition`
+
+Locate where a symbol (function, class, variable, type) is defined.
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `path` | string | Yes | Path that was previously analyzed |
+| `name` | string | Yes | Symbol name to find |
+| `type` | string | No | Symbol type: function, class, variable, or type |
+
+#### `trace_data_flow`
+
+Track how data flows through function parameters and variables.
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `path` | string | Yes | Path that was previously analyzed |
+| `variable` | string | Yes | Variable or parameter name to trace |
+| `function_name` | string | No | Starting function for the trace |
+| `max_depth` | number | No | Maximum trace depth |
+
+### Feedback Tools
+
+#### `request_feature`
+
+Open a feature request issue on the supermodeltools/mcp GitHub repository. Requires a `GITHUB_TOKEN` environment variable with `public_repo` scope.
+
+#### `report_bug`
+
+Report a bug or unexpected behavior by opening an issue on the supermodeltools/mcp GitHub repository. Requires a `GITHUB_TOKEN` environment variable with `public_repo` scope.
+
 ### Choosing the Right Tool
 
 | Tool | Best For | Output Size |
@@ -375,10 +440,14 @@ Generate an AST-level parse graph with fine-grained code structure.
 | `get_dependency_graph` | Module refactoring, circular deps | Small - modules only |
 | `get_domain_graph` | Architecture overview | Smallest - domains only |
 | `get_parse_graph` | AST analysis, precise refactoring | Large - full AST |
+| `find_call_sites` | Where is function X called? | Small (<10KB) |
+| `trace_call_chain` | Path from function A to B | Small (<10KB) |
+| `find_definition` | Where is symbol X defined? | Small (<10KB) |
+| `trace_data_flow` | How does data flow through params? | Small (<10KB) |
 
-**Tip:** Start with `get_domain_graph` for a quick architecture overview, then drill down with `get_call_graph` or `get_dependency_graph` for specific areas.
+**Tip:** Start with `get_domain_graph` for a quick architecture overview, then use task-specific query tools (`find_call_sites`, `trace_call_chain`, etc.) for focused questions. Drill down with `get_call_graph` or `get_dependency_graph` for broader analysis.
 
-> **Note:** All graph tools accept a `directory` parameter and an optional `jq_filter`. If you start the server with a default working directory (`node dist/index.js /path/to/repo`), the `directory` argument can be omitted from tool calls.
+> **Note:** All graph tools accept a `directory` parameter and an optional `jq_filter`. Task-specific query tools use `path` instead. If you start the server with a default working directory (`node dist/index.js /path/to/repo`), directory arguments can be omitted from tool calls.
 
 ## Tool Performance & Timeout Requirements
 
