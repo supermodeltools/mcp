@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { graphCache } from '../cache';
 import { CodeGraphNode } from '../cache/graph-types';
 
@@ -231,6 +232,6 @@ function getCacheKey(path: string): string {
 export const traceCallChainTool = {
   name: 'trace_call_chain',
   description: 'Trace the call chain from one function to another, showing the shortest path of function calls',
-  inputSchema: TraceCallChainArgsSchema,
+  inputSchema: zodToJsonSchema(TraceCallChainArgsSchema),
   handler: traceCallChain,
 };

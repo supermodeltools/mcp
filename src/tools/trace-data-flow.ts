@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { graphCache } from '../cache';
 import { CodeGraphNode } from '../cache/graph-types';
 
@@ -278,6 +279,6 @@ function getCacheKey(path: string): string {
 export const traceDataFlowTool = {
   name: 'trace_data_flow',
   description: 'Trace how data flows through a variable or parameter, showing usage, transformations, and passing between functions',
-  inputSchema: TraceDataFlowArgsSchema,
+  inputSchema: zodToJsonSchema(TraceDataFlowArgsSchema),
   handler: traceDataFlow,
 };

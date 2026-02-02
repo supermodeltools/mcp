@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { graphCache } from '../cache';
 import { CodeGraphNode } from '../cache/graph-types';
 
@@ -199,6 +200,6 @@ function getCacheKey(path: string): string {
 export const findDefinitionTool = {
   name: 'find_definition',
   description: 'Find where a symbol (function, class, variable, type) is defined in the codebase',
-  inputSchema: FindDefinitionArgsSchema,
+  inputSchema: zodToJsonSchema(FindDefinitionArgsSchema),
   handler: findDefinition,
 };

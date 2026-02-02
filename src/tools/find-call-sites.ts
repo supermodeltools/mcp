@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { graphCache } from '../cache';
 import { CodeGraphNode } from '../cache/graph-types';
 
@@ -185,6 +186,6 @@ function getCacheKey(path: string): string {
 export const findCallSitesTool = {
   name: 'find_call_sites',
   description: 'Find all places where a specific function is called, with line numbers and context',
-  inputSchema: FindCallSitesArgsSchema,
+  inputSchema: zodToJsonSchema(FindCallSitesArgsSchema),
   handler: findCallSites,
 };
