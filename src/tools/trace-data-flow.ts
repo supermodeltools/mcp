@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { graphCache } from '../cache';
 import { CodeGraphNode } from '../cache/graph-types';
+import { generateIdempotencyKey } from '../utils/api-helpers';
 
 const TraceDataFlowArgsSchema = z.object({
   path: z.string().describe('Repository path'),
@@ -267,10 +268,10 @@ function generateSummary(variable: string, functionContext: string | undefined, 
 }
 
 /**
- * Helper: Generate cache key
+ * Helper: Generate cache key matching explore_codebase's format
  */
 function getCacheKey(path: string): string {
-  return `cache_${path}`;
+  return generateIdempotencyKey(path);
 }
 
 /**

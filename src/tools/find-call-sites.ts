@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { graphCache } from '../cache';
 import { CodeGraphNode } from '../cache/graph-types';
+import { generateIdempotencyKey } from '../utils/api-helpers';
 
 const FindCallSitesArgsSchema = z.object({
   path: z.string().describe('Repository path'),
@@ -173,11 +174,10 @@ function generateSummary(functionName: string, callSites: CallSiteResult[], tota
 }
 
 /**
- * Helper: Generate cache key (simplified - should match main implementation)
+ * Helper: Generate cache key matching explore_codebase's format
  */
 function getCacheKey(path: string): string {
-  // In real implementation, this would include git hash, etc.
-  return `cache_${path}`;
+  return generateIdempotencyKey(path);
 }
 
 /**
