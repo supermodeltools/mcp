@@ -2,14 +2,20 @@
  * Tests for find-definition tool
  */
 
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { findDefinition } from './find-definition';
 import { graphCache, buildIndexes } from '../cache/graph-cache';
 import { SupermodelIR } from '../cache/graph-types';
 
+// Mock generateIdempotencyKey to return a predictable key for test paths
+jest.mock('../utils/api-helpers', () => ({
+  ...jest.requireActual('../utils/api-helpers') as any,
+  generateIdempotencyKey: (dir: string) => `test-key:${dir}`,
+}));
+
 describe('find-definition', () => {
   const mockPath = '/test/repo';
-  const cacheKey = `cache_${mockPath}`;
+  const cacheKey = `test-key:${mockPath}`;
 
   // Create mock graph data
   const createMockGraph = (): SupermodelIR => ({

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { graphCache } from '../cache';
 import { CodeGraphNode } from '../cache/graph-types';
+import { generateIdempotencyKey } from '../utils/api-helpers';
 
 const FindDefinitionArgsSchema = z.object({
   path: z.string().describe('Repository path'),
@@ -188,10 +189,10 @@ function generateSummary(name: string, type: string, results: DefinitionResult[]
 }
 
 /**
- * Helper: Generate cache key
+ * Helper: Generate cache key matching explore_codebase's format
  */
 function getCacheKey(path: string): string {
-  return `cache_${path}`;
+  return generateIdempotencyKey(path);
 }
 
 /**
