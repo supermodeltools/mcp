@@ -1,25 +1,25 @@
 /**
  * MCP Server implementation for the Supermodel codebase analysis tools.
- * Provides JSON-RPC handlers for code graph generation and exploration.
+ * Redesigned for maximum SWE-bench performance:
+ *  - 2 tools (overview, symbol_context) instead of 10
+ *  - Pre-computed graph support for sub-second response times
+ *  - On-demand API fallback when no cache exists
  * @module server
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
-import createSupermodelGraphTool from './tools/create-supermodel-graph';
-import { graphTools } from './tools/graph-tools';
-import { taskQueryTools } from './tools/task-query-tools';
-import featureRequestTool from './tools/feature-request';
-import bugReportTool from './tools/report-bug';
+import overviewTool from './tools/overview';
+import symbolContextTool from './tools/symbol-context';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';
+import { graphCache, loadCacheFromDisk, setRepoMap, setNoApiFallback, precacheForDirectory } from './cache/graph-cache';
 import { Agent } from 'undici';
 import { DEFAULT_API_TIMEOUT_MS, CONNECTION_TIMEOUT_MS, ZIP_CLEANUP_AGE_MS } from './constants';
 import * as logger from './utils/logger';
 
-// Configure HTTP timeout for API requests (default from constants)
-// Some complex repos can take 10+ minutes to process
+// Configure HTTP timeout for API requests
 const parsedTimeout = parseInt(process.env.SUPERMODEL_TIMEOUT_MS || '', 10);
 const TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout > 0
   ? parsedTimeout
@@ -34,20 +34,25 @@ const agent = new Agent({
 const fetchWithTimeout: typeof fetch = (url, init) => {
   return fetch(url, {
     ...init,
-    // @ts-ignore - 'dispatcher' is a valid undici option that TypeScript's
-    // built-in fetch types don't recognize. This routes requests through our
-    // custom Agent with extended timeouts.
+    // @ts-ignore - 'dispatcher' is a valid undici option
     dispatcher: agent,
   });
 };
+
+export interface ServerOptions {
+  noApiFallback?: boolean;
+  precache?: boolean;
+}
 
 export class Server {
   private server: McpServer;
   private client: ClientContext;
   private defaultWorkdir?: string;
-
-  constructor(defaultWorkdir?: string) {
+  private options?: ServerOptions;
+  constructor(defaultWorkdir?: string, options?: ServerOptions) {
     this.defaultWorkdir = defaultWorkdir;
+    this.options = options;
+    // Note: noApiFallback is deferred to start() so startup precaching can use the API
     this.server = new McpServer(
       {
         name: 'supermodel_api',
@@ -55,89 +60,25 @@ export class Server {
       },
       {
         capabilities: { tools: {}, logging: {} },
-        instructions: `# Supermodel: Code Graph Tools
+        instructions: `# Supermodel: Codebase Intelligence
 
-Generate code graphs to understand a codebase before making changes.
+Two tools for instant codebase understanding. Pre-computed graphs enable sub-second responses.
 
-## Choosing a Tool
+## \`overview\` — Start here
+Get the architecture map: domains, key files, hub functions, file/class/function counts.
+Call this first on any new task to understand WHERE in the codebase to look.
 
-- **Need architecture overview?** → \`get_domain_graph\` (smallest output, fastest to read)
-- **Need to trace function calls?** → \`get_call_graph\` (function nodes + "calls" relationships)
-- **Need to understand imports/dependencies?** → \`get_dependency_graph\` (file nodes + "IMPORTS" relationships)
-- **Need full code structure (classes, types, functions)?** → \`get_parse_graph\` (all nodes + structural relationships)
-- **Need everything in one call?** → \`explore_codebase\` (complete graph with built-in query engine)
-- **Need a focused answer about a specific function/symbol?** → Task-specific query tools (see below)
+## \`symbol_context\` — Deep dive on a symbol
+Given a function, class, or method name, get its definition location, callers, callees, domain membership, and related symbols in the same file.
+Use this when you know WHAT to investigate (e.g. from an issue description, stack trace, or grep result).
+Supports partial matching and "ClassName.method" syntax.
 
-Node IDs are consistent across all graph types. A function ID from \`get_domain_graph\` works in \`get_call_graph\` results.
-
-## What Each Tool Returns
-
-- \`get_domain_graph\`: Domains → { name, description, responsibilities, subdomains, files, functions, classes }
-- \`get_call_graph\`: Functions → { name, filePath, startLine, endLine } with "calls" relationships
-- \`get_dependency_graph\`: Files → { name, filePath, language } with "IMPORTS" relationships
-- \`get_parse_graph\`: All node types (File, Directory, Class, Function, Type) with structural relationships (CONTAINS, DEFINES, DECLARES, IMPORTS)
-- \`explore_codebase\`: Full graph (all of the above combined) with a query engine for filtering
-
-## Parameters
-
-All graph tools accept \`directory\` and \`jq_filter\`. Both are optional:
-- \`directory\`: Path to analyze. **Omit this** if the MCP server was started with a default workdir — it will use that automatically. Pass a subdirectory (e.g. \`src/auth\`) for faster results.
-- \`jq_filter\`: Optional jq expression to extract specific data from the response.
-
-## Caching
-
-\`explore_codebase\` caches graphs in memory (1-hour TTL, LRU eviction). The first call hits the API (30+ seconds); subsequent queries on the same directory are instant. Use \`query: "graph_status"\` to check if a graph is cached before making API calls. Regenerate after code changes by calling without a query. The individual graph tools (\`get_call_graph\`, etc.) do not use the cache — each call hits the API.
-
-## Task-Specific Query Tools
-
-After generating a graph, use these lightweight tools for focused queries:
-
-- \`find_call_sites\`: Find where a function is called (<5s, <10KB)
-- \`trace_call_chain\`: Find path from function A to B (<5s, <10KB)
-- \`find_definition\`: Locate where a symbol is defined (<5s, <10KB)
-- \`trace_data_flow\`: Follow how data flows through parameters (<5s, <10KB)
-
-These tools require a graph to be cached first (via any graph generation tool).
-
-## Performance
-
-- First API call takes 30+ seconds (complex repos can take 10+ minutes)
-- Analyze subdirectories for faster results: \`src/auth\` instead of full repo
-- Use \`jq_filter\` to extract only the data you need
-- With \`explore_codebase\`, use the query engine instead of re-fetching
-- Task query tools are fast (<5s) after initial graph generation
-
-## Common Mistakes
-
-- **Don't analyze the full repo when you only need one module.** Pass a subdirectory to \`directory\`.
-- **Don't use \`explore_codebase\` when you only need call or dependency data.** The individual tools return smaller, focused results.
-- **Don't re-fetch when the graph is cached.** Use \`explore_codebase\` with \`query: "graph_status"\` to check first.
-- **Don't forget \`jq_filter\`.** Large graphs can be megabytes — filter to what you need.
-
-## Errors
-
-- \`error.recoverable: true\` → retry after a brief wait
-- \`error.reportable: true\` → likely a server bug, consider filing with \`report_bug\`
-
-## Feedback: Feature Requests & Bug Reports
-
-If you have an idea for a feature that would make the Supermodel MCP server more useful, or if you encounter a bug or unexpected behavior with any tool or with the underlying Supermodel API, you can open an issue directly on the supermodeltools/mcp GitHub repository using the \`request_feature\` and \`report_bug\` tools. The Supermodel team reviews and responds to all submitted issues.
-
-**Setup:** These tools require a \`GITHUB_TOKEN\` environment variable with permission to create issues on public repositories. To set this up:
-1. Create a GitHub personal access token at https://github.com/settings/tokens with the \`public_repo\` scope.
-2. Set the token as an environment variable: \`export GITHUB_TOKEN=ghp_your_token_here\`
-3. Restart the MCP server so it picks up the new environment variable.
-
-**When to use \`request_feature\`:**
-- You think a new tool or query type would be helpful
-- An existing tool is missing a capability you need
-- You have an idea to improve the developer experience
-
-**When to use \`report_bug\`:**
-- A tool returned an error that seems incorrect or unexpected
-- Results don't match what the tool description promises
-- You hit a crash, timeout, or other failure that seems like a server issue
-- The Supermodel API returned malformed or unexpected data`,
+## Recommended workflow
+1. Call \`overview\` to understand the codebase architecture
+2. Read the issue/bug description and identify relevant domains and symbols
+3. Call \`symbol_context\` on key symbols to understand their structural context
+4. Use Read/Grep to examine the actual source code at the identified locations
+5. Make your fix and verify with tests`,
       },
     );
 
@@ -163,16 +104,12 @@ If you have an idea for a feature that would make the Supermodel MCP server more
   }
 
   private setupHandlers() {
-    // Collect all tools: the main explore_codebase tool plus individual graph tools plus task query tools
     const allTools = [
-      createSupermodelGraphTool,
-      ...graphTools,
-      ...taskQueryTools,
-      featureRequestTool,
-      bugReportTool,
+      overviewTool,
+      symbolContextTool,
     ];
 
-    // Create a map for quick handler lookup, checking for duplicates
+    // Create a map for quick handler lookup
     const toolMap = new Map<string, typeof allTools[0]>();
     for (const t of allTools) {
       if (toolMap.has(t.tool.name)) {
@@ -203,9 +140,37 @@ If you have an idea for a feature that would make the Supermodel MCP server more
     // Clean up any stale ZIP files from previous sessions
     await cleanupOldZips(ZIP_CLEANUP_AGE_MS);
 
+    // Load pre-computed graphs from cache directory
+    const cacheDir = process.env.SUPERMODEL_CACHE_DIR;
+    if (cacheDir) {
+      logger.debug('Loading pre-computed graphs from:', cacheDir);
+      const repoMap = await loadCacheFromDisk(cacheDir, graphCache);
+      setRepoMap(repoMap);
+      logger.debug(`Loaded ${repoMap.size} repo mappings`);
+    }
+
+    // Precache the workdir's repo if --precache flag is set.
+    // Runs BEFORE noApiFallback is set so the API is available.
+    // On first run for a repo this calls the Supermodel API (5-15 min).
+    // The API has server-side idempotency caching, so repeated calls
+    // with the same repo+commit return instantly. Results are saved to
+    // cacheDir for cross-container persistence.
+    if (this.options?.precache && this.defaultWorkdir) {
+      try {
+        await precacheForDirectory(this.client, this.defaultWorkdir, cacheDir);
+      } catch (err: any) {
+        // Non-fatal: if precaching fails, tools fall back to no-cache error
+        logger.warn('Startup precache failed:', err.message || err);
+      }
+    }
+
+    // NOW enable no-api-fallback (after precaching had its chance)
+    if (this.options?.noApiFallback) {
+      setNoApiFallback(true);
+    }
+
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     logger.info('Supermodel MCP Server running on stdio');
   }
 }
-

@@ -5,7 +5,7 @@ export interface ClientContext {
   graphs: SupermodelClient;
 }
 
-export type ContentBlock = 
+type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; data: string; mimeType: string }
   | { type: 'audio'; data: string; mimeType: string }
@@ -22,17 +22,7 @@ export type HandlerFunction = (
   defaultWorkdir?: string
 ) => Promise<ToolCallResult>;
 
-export type Metadata = {
-  resource: string;
-  operation: 'read' | 'write';
-  tags: string[];
-  httpMethod?: string;
-  httpPath?: string;
-  operationId?: string;
-};
-
 export type Endpoint = {
-  metadata: Metadata;
   tool: Tool;
   handler: HandlerFunction;
 };
@@ -53,7 +43,7 @@ export function asTextContentResult(result: unknown): ToolCallResult {
  * Structured error types for agent-parseable error responses.
  * Agents can use these to decide whether to retry, fallback, or report.
  */
-export type ErrorType =
+type ErrorType =
   | 'authentication_error'
   | 'authorization_error'
   | 'rate_limit_error'
