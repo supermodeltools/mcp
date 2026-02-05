@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from '@jest/globals';
-import { GraphCache, buildIndexes, normalizePath, toNodeDescriptor } from './graph-cache';
-import { SupermodelIR, CodeGraphNode, CodeGraphRelationship } from './graph-types';
+import { GraphCache, buildIndexes, normalizePath } from './graph-cache';
 
 describe('graph-cache', () => {
   describe('GraphCache', () => {
@@ -205,7 +204,7 @@ describe('graph-cache', () => {
 
   describe('buildIndexes', () => {
     it('should build node indexes correctly', () => {
-      const raw: SupermodelIR = {
+      const raw: any = {
         repo: 'test-repo',
         graph: {
           nodes: [
@@ -233,7 +232,7 @@ describe('graph-cache', () => {
     });
 
     it('should build name index (lowercase)', () => {
-      const raw: SupermodelIR = {
+      const raw: any = {
         repo: 'test-repo',
         graph: {
           nodes: [
@@ -253,7 +252,7 @@ describe('graph-cache', () => {
     });
 
     it('should build path index', () => {
-      const raw: SupermodelIR = {
+      const raw: any = {
         repo: 'test-repo',
         graph: {
           nodes: [
@@ -281,7 +280,7 @@ describe('graph-cache', () => {
     });
 
     it('should build call adjacency lists', () => {
-      const raw: SupermodelIR = {
+      const raw: any = {
         repo: 'test-repo',
         graph: {
           nodes: [
@@ -318,7 +317,7 @@ describe('graph-cache', () => {
     });
 
     it('should build import adjacency lists', () => {
-      const raw: SupermodelIR = {
+      const raw: any = {
         repo: 'test-repo',
         graph: {
           nodes: [
@@ -355,7 +354,7 @@ describe('graph-cache', () => {
     });
 
     it('should compute summary statistics', () => {
-      const raw: SupermodelIR = {
+      const raw: any = {
         repo: 'test-repo',
         graph: {
           nodes: [
@@ -383,7 +382,7 @@ describe('graph-cache', () => {
     });
 
     it('should set cache metadata', () => {
-      const raw: SupermodelIR = {
+      const raw: any = {
         repo: 'test-repo',
         graph: { nodes: [], relationships: [] },
       };
@@ -409,48 +408,6 @@ describe('graph-cache', () => {
     });
   });
 
-  describe('toNodeDescriptor', () => {
-    it('should convert full node to lightweight descriptor', () => {
-      const node: CodeGraphNode = {
-        id: 'node1',
-        labels: ['Function'],
-        properties: {
-          name: 'testFunc',
-          filePath: 'src/test.ts',
-          startLine: 10,
-          endLine: 20,
-          kind: 'function',
-          extraProp: 'ignored',
-        },
-      };
-
-      const descriptor = toNodeDescriptor(node);
-
-      expect(descriptor.id).toBe('node1');
-      expect(descriptor.labels).toEqual(['Function']);
-      expect(descriptor.name).toBe('testFunc');
-      expect(descriptor.filePath).toBe('src/test.ts');
-      expect(descriptor.startLine).toBe(10);
-      expect(descriptor.endLine).toBe(20);
-      expect(descriptor.kind).toBe('function');
-      expect('extraProp' in descriptor).toBe(false);
-    });
-
-    it('should handle nodes with missing properties', () => {
-      const node: CodeGraphNode = {
-        id: 'node1',
-        labels: ['Type'],
-        properties: {},
-      };
-
-      const descriptor = toNodeDescriptor(node);
-
-      expect(descriptor.id).toBe('node1');
-      expect(descriptor.labels).toEqual(['Type']);
-      expect(descriptor.name).toBeUndefined();
-      expect(descriptor.filePath).toBeUndefined();
-    });
-  });
 });
 
 // Helper function to create mock indexed graph

@@ -9,9 +9,7 @@ import { existsSync } from 'fs';
 import * as readline from 'readline';
 import * as path from 'path';
 
-/** Maximum time to wait for server startup */
 const SERVER_STARTUP_TIMEOUT_MS = 5000;
-/** Polling interval for server readiness check */
 const STARTUP_POLL_INTERVAL_MS = 100;
 
 describe('MCP Server Integration', () => {
@@ -20,12 +18,6 @@ describe('MCP Server Integration', () => {
   let responseQueue: Map<number, { resolve: (value: any) => void; reject: (err: Error) => void }> = new Map();
   let rl: readline.Interface;
 
-  /**
-   * Sends a JSON-RPC request to the server and waits for response.
-   * @param method - The JSON-RPC method name
-   * @param params - Optional parameters for the request
-   * @returns Promise resolving to the response result
-   */
   function sendRequest(method: string, params: Record<string, unknown> = {}): Promise<any> {
     return new Promise((resolve, reject) => {
       const id = ++requestId;
@@ -38,7 +30,6 @@ describe('MCP Server Integration', () => {
       responseQueue.set(id, { resolve, reject });
       server.stdin!.write(JSON.stringify(request) + '\n');
 
-      // Timeout after 5 seconds
       setTimeout(() => {
         if (responseQueue.has(id)) {
           responseQueue.delete(id);
@@ -49,7 +40,6 @@ describe('MCP Server Integration', () => {
   }
 
   beforeAll(async () => {
-    // Verify dist/index.js exists before attempting to start server
     const distPath = path.join(__dirname, '..', 'dist', 'index.js');
     if (!existsSync(distPath)) {
       throw new Error(
@@ -57,18 +47,15 @@ describe('MCP Server Integration', () => {
       );
     }
 
-    // Start the MCP server
     server = spawn('node', [distPath], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env }
     });
 
-    // Handle server spawn errors
     server.on('error', (err) => {
       throw new Error(`Failed to start MCP server: ${err.message}`);
     });
 
-    // Parse JSON-RPC responses
     rl = readline.createInterface({
       input: server.stdout!,
       crlfDelay: Infinity
@@ -91,17 +78,13 @@ describe('MCP Server Integration', () => {
       }
     });
 
-    // Wait for server to be ready with retry loop
     let ready = false;
     const startTime = Date.now();
     while (Date.now() - startTime < SERVER_STARTUP_TIMEOUT_MS) {
-      // Check if server has exited unexpectedly
       if (server.exitCode !== null) {
         throw new Error(`Server exited unexpectedly with code ${server.exitCode}`);
       }
-      // Small delay between checks
       await new Promise(r => setTimeout(r, STARTUP_POLL_INTERVAL_MS));
-      // Server is ready when stdin is writable
       if (server.stdin?.writable) {
         ready = true;
         break;
@@ -109,16 +92,11 @@ describe('MCP Server Integration', () => {
     }
 
     if (!ready) {
-      const exitInfo = server.exitCode !== null ? `exit code ${server.exitCode}` : 'still running';
-      throw new Error(
-        `Server not ready after ${SERVER_STARTUP_TIMEOUT_MS}ms (${exitInfo}). ` +
-        `Polled every ${STARTUP_POLL_INTERVAL_MS}ms but stdin never became writable.`
-      );
+      throw new Error(`Server not ready after ${SERVER_STARTUP_TIMEOUT_MS}ms`);
     }
   });
 
   afterAll(async () => {
-    // Clear any pending response handlers
     responseQueue.clear();
     rl?.close();
     if (server && !server.killed) {
@@ -127,7 +105,6 @@ describe('MCP Server Integration', () => {
       server.stderr?.destroy();
       server.kill('SIGKILL');
     }
-    // Give time for cleanup
     await new Promise(r => setTimeout(r, 100));
   });
 
@@ -153,59 +130,44 @@ describe('MCP Server Integration', () => {
       });
 
       expect(result.instructions).toBeDefined();
-      expect(result.instructions).toContain('Supermodel: Code Graph Tools');
+      expect(result.instructions).toContain('Supermodel: Codebase Intelligence');
     });
   });
 
   describe('tools/list', () => {
-    it('should list all available tools', async () => {
+    it('should list exactly 2 tools', async () => {
       const result = await sendRequest('tools/list', {});
 
       expect(result.tools).toBeDefined();
       expect(Array.isArray(result.tools)).toBe(true);
-      expect(result.tools.length).toBeGreaterThanOrEqual(5);
+      expect(result.tools.length).toBe(2);
     });
 
-    it('should include explore_codebase tool', async () => {
-      const result = await sendRequest('tools/list', {});
-      const exploreTool = result.tools.find((t: any) => t.name === 'explore_codebase');
-
-      expect(exploreTool).toBeDefined();
-      expect(exploreTool.description).toContain('codebase analysis');
-      expect(exploreTool.inputSchema.properties.directory).toBeDefined();
-      expect(exploreTool.inputSchema.properties.query).toBeDefined();
-    });
-
-    it('should include individual graph tools', async () => {
+    it('should include overview and symbol_context tools', async () => {
       const result = await sendRequest('tools/list', {});
       const toolNames = result.tools.map((t: any) => t.name);
 
-      expect(toolNames).toContain('get_call_graph');
-      expect(toolNames).toContain('get_dependency_graph');
-      expect(toolNames).toContain('get_domain_graph');
-      expect(toolNames).toContain('get_parse_graph');
+      expect(toolNames).toContain('overview');
+      expect(toolNames).toContain('symbol_context');
     });
 
-    it('should have consistent schema for graph tools', async () => {
+    it('should have correct schema for tools', async () => {
       const result = await sendRequest('tools/list', {});
-      const graphTools = result.tools.filter((t: any) =>
-        ['get_call_graph', 'get_dependency_graph', 'get_domain_graph', 'get_parse_graph'].includes(t.name)
-      );
 
-      for (const tool of graphTools) {
-        expect(tool.inputSchema.properties.directory).toBeDefined();
-        expect(tool.inputSchema.properties.directory.type).toBe('string');
-        expect(tool.inputSchema.properties.jq_filter).toBeDefined();
-        expect(tool.inputSchema.properties.jq_filter.type).toBe('string');
-        expect(tool.inputSchema.required).toEqual([]);
-      }
+      const overviewTool = result.tools.find((t: any) => t.name === 'overview');
+      expect(overviewTool.inputSchema.properties.directory).toBeDefined();
+
+      const symbolTool = result.tools.find((t: any) => t.name === 'symbol_context');
+      expect(symbolTool.inputSchema.properties.symbol).toBeDefined();
+      expect(symbolTool.inputSchema.properties.directory).toBeDefined();
+      expect(symbolTool.inputSchema.required).toContain('symbol');
     });
   });
 
   describe('tools/call validation', () => {
-    it('should return validation error for missing directory', async () => {
+    it('should return validation error for missing directory on overview', async () => {
       const result = await sendRequest('tools/call', {
-        name: 'get_call_graph',
+        name: 'overview',
         arguments: {}
       });
 
@@ -216,56 +178,15 @@ describe('MCP Server Integration', () => {
       expect(parsed.error.type).toBe('validation_error');
     });
 
-    it('should return validation error for invalid directory type', async () => {
+    it('should return validation error for missing symbol on symbol_context', async () => {
       const result = await sendRequest('tools/call', {
-        name: 'get_call_graph',
-        arguments: { directory: 123 }
+        name: 'symbol_context',
+        arguments: { directory: '/tmp' }
       });
 
       expect(result.content).toBeDefined();
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.error.code).toBe('INVALID_DIRECTORY');
-    });
-
-    it('should return validation error for invalid jq_filter type', async () => {
-      const result = await sendRequest('tools/call', {
-        name: 'get_call_graph',
-        arguments: { directory: '/tmp', jq_filter: ['invalid'] }
-      });
-
-      expect(result.content).toBeDefined();
-      const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.error.code).toBe('INVALID_JQ_FILTER');
-    });
-
-    it('should return not_found error for non-existent directory', async () => {
-      const result = await sendRequest('tools/call', {
-        name: 'get_call_graph',
-        arguments: { directory: '/nonexistent/path/xyz123' }
-      });
-
-      expect(result.content).toBeDefined();
-      const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.error.code).toBe('DIRECTORY_NOT_FOUND');
-      expect(parsed.error.type).toBe('not_found_error');
-    });
-  });
-
-  describe('explore_codebase queries', () => {
-    it('should return cache status without API call', async () => {
-      const result = await sendRequest('tools/call', {
-        name: 'explore_codebase',
-        arguments: {
-          directory: process.cwd(),
-          query: 'graph_status'
-        }
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.content[0].type).toBe('text');
-      // graph_status returns cache info, not an error
-      const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.query).toBe('graph_status');
+      expect(parsed.error.code).toBe('MISSING_SYMBOL');
     });
   });
 });

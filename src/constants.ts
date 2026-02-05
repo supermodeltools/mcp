@@ -16,6 +16,11 @@ export const DEFAULT_MAX_GRAPHS = 20; // Maximum number of graphs to cache
 export const DEFAULT_MAX_NODES = 1_000_000; // Maximum total nodes across all cached graphs
 export const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour - time-to-live for cached graphs
 
-// Query defaults
-export const DEFAULT_QUERY_LIMIT = 200; // Default result limit for queries
-export const MAX_NEIGHBORHOOD_DEPTH = 3; // Maximum traversal depth for neighborhood queries
+// Overview tool output limits
+export const MAX_OVERVIEW_DOMAINS = 10; // Top N domains to show in overview
+export const MAX_OVERVIEW_HUB_FUNCTIONS = 10; // Top N hub functions to show
+
+// Symbol context tool output limits
+export const MAX_SYMBOL_CALLERS = 10; // Top N callers to show
+export const MAX_SYMBOL_CALLEES = 10; // Top N callees to show
+export const MAX_SYMBOL_RELATED = 8; // Related symbols in same file

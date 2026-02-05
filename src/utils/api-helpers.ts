@@ -8,18 +8,8 @@ import { createHash } from 'crypto';
 import { basename, resolve } from 'path';
 import { StructuredError } from '../types';
 
-export const REPORT_REPO = 'https://github.com/supermodeltools/mcp.git';
-export const REPORT_SUGGESTION = 'This may be a bug in the MCP server. You can help by opening an issue at https://github.com/supermodeltools/mcp/issues with the error details, or fork the repo and open a PR with a fix.';
-
-/**
- * Format bytes as human-readable string
- */
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
+const REPORT_REPO = 'https://github.com/supermodeltools/mcp.git';
+const REPORT_SUGGESTION = 'This may be a bug in the MCP server. You can help by opening an issue at https://github.com/supermodeltools/mcp/issues with the error details, or fork the repo and open a PR with a fix.';
 
 /**
  * Generate an idempotency key in format {repo}-{pathHash}:{graphType}:{hash}

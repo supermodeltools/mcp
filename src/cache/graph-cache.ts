@@ -1,38 +1,27 @@
 /**
  * LRU Cache for indexed graphs
  * Stores raw API responses + derived indexes for fast query execution
+ * Supports disk persistence for pre-computed graphs
  */
 
 import { SupermodelIR, CodeGraphNode, CodeGraphRelationship } from './graph-types';
 import { DEFAULT_MAX_GRAPHS, DEFAULT_MAX_NODES, DEFAULT_CACHE_TTL_MS } from '../constants';
-
-// Lightweight node descriptor for query responses
-export interface NodeDescriptor {
-  id: string;
-  labels: string[];
-  name?: string;
-  filePath?: string;
-  startLine?: number;
-  endLine?: number;
-  kind?: string;
-}
-
-// Edge descriptor for query responses
-export interface EdgeDescriptor {
-  type: string;
-  from: string;
-  to: string;
-  props?: Record<string, unknown>;
-}
+import { ClientContext } from '../types';
+import { generateIdempotencyKey } from '../utils/api-helpers';
+import { zipRepository } from '../utils/zip-repository';
+import { promises as fs } from 'fs';
+import { join, basename } from 'path';
+import { Blob } from 'buffer';
+import * as logger from '../utils/logger';
 
 // Adjacency list for traversal
-export interface AdjacencyList {
+interface AdjacencyList {
   out: string[];
   in: string[];
 }
 
 // Path index entry - what entities are defined in a file
-export interface PathIndexEntry {
+interface PathIndexEntry {
   fileId: string;
   classIds: string[];
   functionIds: string[];
@@ -268,22 +257,6 @@ export function normalizePath(path: string): string {
 }
 
 /**
- * Convert full node to lightweight descriptor
- */
-export function toNodeDescriptor(node: CodeGraphNode): NodeDescriptor {
-  const props = node.properties || {};
-  return {
-    id: node.id,
-    labels: node.labels || [],
-    name: props.name as string | undefined,
-    filePath: props.filePath as string | undefined,
-    startLine: props.startLine as number | undefined,
-    endLine: props.endLine as number | undefined,
-    kind: props.kind as string | undefined,
-  };
-}
-
-/**
  * LRU Cache for indexed graphs
  */
 export class GraphCache {
@@ -391,5 +364,342 @@ export class GraphCache {
   }
 }
 
+/**
+ * Save a SupermodelIR to disk for later use as a pre-computed cache.
+ * Stores as JSON with a metadata wrapper.
+ */
+export async function saveCacheToDisk(
+  cacheDir: string,
+  repoName: string,
+  raw: SupermodelIR,
+  commitHash?: string
+): Promise<string> {
+  await fs.mkdir(cacheDir, { recursive: true });
+
+  const fileName = `${sanitizeFileName(repoName)}.json`;
+  const filePath = join(cacheDir, fileName);
+
+  const payload = {
+    version: 1,
+    repoName,
+    commitHash: commitHash || null,
+    savedAt: new Date().toISOString(),
+    raw,
+  };
+
+  await fs.writeFile(filePath, JSON.stringify(payload));
+  return filePath;
+}
+
+/**
+ * Load all pre-computed graphs from a cache directory into the GraphCache.
+ * Returns a Map of repoName -> IndexedGraph for repo auto-detection.
+ */
+export async function loadCacheFromDisk(
+  cacheDir: string,
+  cache: GraphCache
+): Promise<Map<string, IndexedGraph>> {
+  const repoMap = new Map<string, IndexedGraph>();
+
+  let entries: string[];
+  try {
+    entries = await fs.readdir(cacheDir);
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      logger.debug('Cache directory does not exist:', cacheDir);
+      return repoMap;
+    }
+    throw error;
+  }
+
+  const jsonFiles = entries.filter(e => e.endsWith('.json'));
+  logger.debug(`Found ${jsonFiles.length} cache files in ${cacheDir}`);
+
+  for (const file of jsonFiles) {
+    try {
+      const filePath = join(cacheDir, file);
+      const content = await fs.readFile(filePath, 'utf-8');
+      const payload = JSON.parse(content);
+
+      if (!payload.raw || !payload.repoName) {
+        logger.warn(`Skipping invalid cache file: ${file}`);
+        continue;
+      }
+
+      const repoName = payload.repoName as string;
+      const cacheKey = `precache:${repoName}`;
+      const graph = buildIndexes(payload.raw, cacheKey);
+
+      cache.set(cacheKey, graph);
+      repoMap.set(repoName.toLowerCase(), graph);
+
+      // Index by commit hash for exact matching (e.g. "commit:abc1234")
+      const commitHash = payload.commitHash as string | null;
+      if (commitHash) {
+        repoMap.set(`commit:${commitHash}`, graph);
+      }
+
+      // Also store common variants of the repo name for matching
+      // e.g. "django" for "django__django", "astropy" for "astropy__astropy"
+      const parts = repoName.toLowerCase().split(/[_\-\/]/);
+      for (const part of parts) {
+        if (part && part.length > 2 && !repoMap.has(part)) {
+          repoMap.set(part, graph);
+        }
+      }
+
+      logger.debug(`Loaded pre-computed graph for ${repoName} (commit: ${commitHash || 'unknown'}): ${graph.summary.nodeCount} nodes`);
+    } catch (error: any) {
+      logger.warn(`Failed to load cache file ${file}: ${error.message}`);
+    }
+  }
+
+  return repoMap;
+}
+
+/**
+ * Detect which pre-computed graph matches a given directory.
+ * Tries: git remote name, directory basename, parent directory name.
+ */
+function detectRepo(
+  directory: string,
+  repoMap: Map<string, IndexedGraph>
+): IndexedGraph | null {
+  if (repoMap.size === 0) return null;
+
+  // Strategy 0 (highest priority): Match by exact commit hash
+  try {
+    const { execSync } = require('child_process');
+    const commitHash = execSync('git rev-parse --short HEAD', {
+      cwd: directory, encoding: 'utf-8', timeout: 2000,
+    }).trim();
+    if (commitHash && repoMap.has(`commit:${commitHash}`)) {
+      return repoMap.get(`commit:${commitHash}`)!;
+    }
+  } catch {
+    // Not a git repo
+  }
+
+  // Strategy 1: Try directory basename
+  const dirName = basename(directory).toLowerCase();
+  if (repoMap.has(dirName)) {
+    return repoMap.get(dirName)!;
+  }
+
+  // Strategy 2: Try git remote (sync, best-effort)
+  try {
+    const { execSync } = require('child_process');
+    const remote = execSync('git remote get-url origin', {
+      cwd: directory,
+      encoding: 'utf-8',
+      timeout: 2000,
+    }).trim();
+
+    // Extract repo name from URL: "https://github.com/django/django.git" -> "django"
+    const match = remote.match(/\/([^\/]+?)(?:\.git)?$/);
+    if (match) {
+      const repoName = match[1].toLowerCase();
+      if (repoMap.has(repoName)) {
+        return repoMap.get(repoName)!;
+      }
+    }
+
+    // Try org/repo format: "django/django" -> try "django"
+    const orgMatch = remote.match(/\/([^\/]+)\/([^\/]+?)(?:\.git)?$/);
+    if (orgMatch) {
+      const orgName = orgMatch[1].toLowerCase();
+      const repoName = orgMatch[2].toLowerCase();
+      // Try "org__repo" format (swe-bench style)
+      const sweKey = `${orgName}__${repoName}`;
+      if (repoMap.has(sweKey)) {
+        return repoMap.get(sweKey)!;
+      }
+      if (repoMap.has(orgName)) {
+        return repoMap.get(orgName)!;
+      }
+      if (repoMap.has(repoName)) {
+        return repoMap.get(repoName)!;
+      }
+    }
+  } catch {
+    // Not a git repo or git not available -- that's fine
+  }
+
+  // Strategy 3: If there's only one cached graph, use it (common in SWE-bench)
+  if (repoMap.size <= 3) {
+    // Small map likely has only one real repo with name variants
+    const uniqueGraphs = new Set([...repoMap.values()]);
+    if (uniqueGraphs.size === 1) {
+      return [...uniqueGraphs][0];
+    }
+  }
+
+  return null;
+}
+
+export function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_\-]/g, '_');
+}
+
+/**
+ * Detect the repo name from a directory (git remote or basename).
+ */
+function detectRepoName(directory: string): string {
+  try {
+    const { execSync } = require('child_process');
+    const remote = execSync('git remote get-url origin', {
+      cwd: directory,
+      encoding: 'utf-8',
+      timeout: 2000,
+    }).trim();
+    const match = remote.match(/\/([^\/]+?)(?:\.git)?$/);
+    if (match) return match[1];
+  } catch {
+    // Not a git repo
+  }
+  return basename(directory);
+}
+
 // Global cache instance
 export const graphCache = new GraphCache();
+
+// Repo map for pre-computed graphs (populated at startup)
+let _repoMap: Map<string, IndexedGraph> = new Map();
+let _noApiFallback = false;
+
+export function setRepoMap(map: Map<string, IndexedGraph>): void {
+  _repoMap = map;
+}
+
+export function setNoApiFallback(enabled: boolean): void {
+  _noApiFallback = enabled;
+}
+
+/**
+ * Resolve a graph for a directory: pre-computed cache → LRU cache → API fallback.
+ * When --no-api-fallback is set, throws instead of calling the API.
+ */
+export async function resolveOrFetchGraph(
+  client: ClientContext,
+  directory: string
+): Promise<IndexedGraph> {
+  // 1. Pre-computed cache
+  const precomputed = detectRepo(directory, _repoMap);
+  if (precomputed) return precomputed;
+
+  // 2. LRU cache
+  const idempotencyKey = generateIdempotencyKey(directory);
+  const cached = graphCache.get(idempotencyKey);
+  if (cached) return cached;
+
+  // 3. Fast-fail when API fallback is disabled (e.g. SWE-bench)
+  if (_noApiFallback) {
+    throw {
+      response: null,
+      request: null,
+      message: 'No pre-computed graph available for this repository. Use grep, find, and file reading to explore the codebase instead.',
+      code: 'NO_CACHE',
+    };
+  }
+
+  // 4. API fallback
+  console.error('[Supermodel] Generating codebase graph (this may take a few minutes)...');
+  const zipResult = await zipRepository(directory);
+  let progressInterval: NodeJS.Timeout | null = null;
+  let elapsed = 0;
+  progressInterval = setInterval(() => {
+    elapsed += 15;
+    console.error(`[Supermodel] Analysis in progress... (${elapsed}s elapsed)`);
+  }, 15000);
+
+  try {
+    const fileBuffer = await fs.readFile(zipResult.path);
+    const fileBlob = new Blob([fileBuffer], { type: 'application/zip' });
+
+    const response = await client.graphs.generateSupermodelGraph(
+      fileBlob as any,
+      { idempotencyKey }
+    );
+
+    const graph = buildIndexes(response, idempotencyKey);
+    graphCache.set(idempotencyKey, graph);
+
+    console.error('[Supermodel] Analysis complete.');
+    return graph;
+  } finally {
+    if (progressInterval) clearInterval(progressInterval);
+    await zipResult.cleanup();
+  }
+}
+
+/**
+ * Pre-compute and cache a graph for a directory during server startup.
+ * If a cache already exists (in repoMap or on disk), this is a no-op.
+ * Otherwise calls the API, saves to cacheDir for cross-container persistence,
+ * and updates the in-memory repoMap.
+ *
+ * The Supermodel API has server-side idempotency caching, so repeated calls
+ * with the same idempotency key (same repo + commit) return instantly.
+ */
+export async function precacheForDirectory(
+  client: ClientContext,
+  directory: string,
+  cacheDir: string | undefined
+): Promise<void> {
+  // Already cached?
+  if (detectRepo(directory, _repoMap)) {
+    logger.debug('Graph already cached for', directory);
+    return;
+  }
+
+  logger.info('Pre-computing graph for', directory, '(first run for this repo; subsequent runs will be instant)...');
+
+  const idempotencyKey = generateIdempotencyKey(directory);
+  const repoName = detectRepoName(directory);
+
+  const zipResult = await zipRepository(directory);
+  let progressInterval: NodeJS.Timeout | null = null;
+  let elapsed = 0;
+  progressInterval = setInterval(() => {
+    elapsed += 15;
+    logger.info(`Analysis in progress... (${elapsed}s elapsed)`);
+  }, 15000);
+
+  try {
+    const fileBuffer = await fs.readFile(zipResult.path);
+    const fileBlob = new Blob([fileBuffer], { type: 'application/zip' });
+
+    const response = await client.graphs.generateSupermodelGraph(
+      fileBlob as any,
+      { idempotencyKey }
+    );
+
+    const graph = buildIndexes(response, `precache:${repoName}`);
+
+    // Update in-memory caches
+    graphCache.set(idempotencyKey, graph);
+    _repoMap.set(repoName.toLowerCase(), graph);
+    const parts = repoName.toLowerCase().split(/[_\-\/]/);
+    for (const part of parts) {
+      if (part && part.length > 2 && !_repoMap.has(part)) {
+        _repoMap.set(part, graph);
+      }
+    }
+
+    // Persist to disk for cross-container reuse
+    if (cacheDir) {
+      try {
+        const savedPath = await saveCacheToDisk(cacheDir, repoName, response);
+        logger.info('Saved graph to:', savedPath);
+      } catch (err: any) {
+        // Non-fatal: cache dir might be read-only or full
+        logger.warn('Failed to persist graph to disk:', err.message);
+      }
+    }
+
+    logger.info(`Pre-compute complete: ${graph.summary.nodeCount} nodes, ${graph.summary.relationshipCount} relationships`);
+  } finally {
+    if (progressInterval) clearInterval(progressInterval);
+    await zipResult.cleanup();
+  }
+}
