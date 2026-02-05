@@ -138,8 +138,7 @@ async function handlePrecache(args: string[]) {
   const { generateIdempotencyKey } = require('./utils/api-helpers');
   const { Agent } = require('undici');
 
-  const DEFAULT_API_TIMEOUT_MS = 900_000;
-  const CONNECTION_TIMEOUT_MS = 30_000;
+  const { DEFAULT_API_TIMEOUT_MS, CONNECTION_TIMEOUT_MS } = require('./constants');
 
   const parsedTimeout = parseInt(process.env.SUPERMODEL_TIMEOUT_MS || '', 10);
   const timeoutMs = Number.isFinite(parsedTimeout) && parsedTimeout > 0

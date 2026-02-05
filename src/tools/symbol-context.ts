@@ -199,7 +199,8 @@ function symbolPriority(node: CodeGraphNode): number {
 
 function renderSymbolContext(graph: IndexedGraph, node: CodeGraphNode): string {
   const name = node.properties?.name as string || '(unknown)';
-  const filePath = normalizePath(node.properties?.filePath as string || '');
+  const rawFilePath = node.properties?.filePath as string || '';
+  const filePath = normalizePath(rawFilePath);
   const startLine = node.properties?.startLine as number || 0;
   const endLine = node.properties?.endLine as number || 0;
   const kind = node.properties?.kind as string || node.labels?.[0]?.toLowerCase() || 'symbol';
@@ -272,7 +273,7 @@ function renderSymbolContext(graph: IndexedGraph, node: CodeGraphNode): string {
 
   // Related symbols in same file
   if (filePath) {
-    const pathEntry = graph.pathIndex.get(filePath);
+    const pathEntry = graph.pathIndex.get(filePath) ?? graph.pathIndex.get(rawFilePath);
     if (pathEntry) {
       const relatedIds = [
         ...pathEntry.functionIds,
@@ -311,7 +312,7 @@ function renderSymbolContext(graph: IndexedGraph, node: CodeGraphNode): string {
 
   // Import relationships (for files containing this symbol)
   if (filePath) {
-    const fileEntry = graph.pathIndex.get(filePath);
+    const fileEntry = graph.pathIndex.get(filePath) ?? graph.pathIndex.get(rawFilePath);
     if (fileEntry?.fileId) {
       const fileAdj = graph.importAdj.get(fileEntry.fileId);
       if (fileAdj) {

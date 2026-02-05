@@ -9,7 +9,7 @@ type ContentBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; data: string; mimeType: string }
   | { type: 'audio'; data: string; mimeType: string }
-  | { type: 'resource'; resource: any };
+  | { type: 'resource'; resource: unknown };
 
 export type ToolCallResult = {
   content: ContentBlock[];

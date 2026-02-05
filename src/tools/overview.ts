@@ -129,20 +129,16 @@ function renderOverview(graph: IndexedGraph): string {
 }
 
 function getKeyFilesForDomain(graph: IndexedGraph, memberIds: string[]): string[] {
-  const filePaths = new Set<string>();
+  // Return top 3 most common file paths
+  const pathCounts = new Map<string, number>();
   for (const id of memberIds) {
     const node = graph.nodeById.get(id);
     if (!node) continue;
     const fp = node.properties?.filePath as string;
     if (fp) {
-      filePaths.add(normalizePath(fp));
+      const normalized = normalizePath(fp);
+      pathCounts.set(normalized, (pathCounts.get(normalized) || 0) + 1);
     }
-  }
-
-  // Return top 3 most common file paths
-  const pathCounts = new Map<string, number>();
-  for (const fp of filePaths) {
-    pathCounts.set(fp, (pathCounts.get(fp) || 0) + 1);
   }
 
   return [...pathCounts.entries()]

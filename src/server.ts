@@ -165,9 +165,7 @@ Supports partial matching and "ClassName.method" syntax.
     }
 
     // NOW enable no-api-fallback (after precaching had its chance)
-    if (this.options?.noApiFallback) {
-      setNoApiFallback(true);
-    }
+    setNoApiFallback(!!this.options?.noApiFallback);
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
