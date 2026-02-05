@@ -54,10 +54,10 @@ export const tool: Tool = {
 };
 
 export const handler: HandlerFunction = async (client, args, defaultWorkdir) => {
-  const symbol = args?.symbol as string;
+  const symbol = typeof args?.symbol === 'string' ? args.symbol.trim() : '';
   const directory = (args?.directory as string) ?? defaultWorkdir;
 
-  if (!symbol || typeof symbol !== 'string') {
+  if (!symbol) {
     return asErrorResult({
       type: 'validation_error',
       message: 'Missing required "symbol" parameter.',

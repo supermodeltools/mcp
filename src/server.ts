@@ -143,10 +143,14 @@ Supports partial matching and "ClassName.method" syntax.
     // Load pre-computed graphs from cache directory
     const cacheDir = process.env.SUPERMODEL_CACHE_DIR;
     if (cacheDir) {
-      logger.debug('Loading pre-computed graphs from:', cacheDir);
-      const repoMap = await loadCacheFromDisk(cacheDir, graphCache);
-      setRepoMap(repoMap);
-      logger.debug(`Loaded ${repoMap.size} repo mappings`);
+      try {
+        logger.debug('Loading pre-computed graphs from:', cacheDir);
+        const repoMap = await loadCacheFromDisk(cacheDir, graphCache);
+        setRepoMap(repoMap);
+        logger.debug(`Loaded ${repoMap.size} repo mappings`);
+      } catch (err: any) {
+        logger.warn('Failed to load cache directory:', err.message || err);
+      }
     }
 
     // Precache the workdir's repo if --precache flag is set.

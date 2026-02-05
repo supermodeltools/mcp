@@ -116,9 +116,8 @@ async function handlePrecache(args: string[]) {
   const name = repoName || (commitHash ? `${detectedName}_${commitHash}` : detectedName);
 
   // Check if cache file already exists (skip redundant API calls)
-  const { saveCacheToDisk, buildIndexes } = require('./cache/graph-cache');
-  const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9_\-]/g, '_');
-  const expectedPath = join(outputDir, `${sanitize(name)}.json`);
+  const { saveCacheToDisk, buildIndexes, sanitizeFileName } = require('./cache/graph-cache');
+  const expectedPath = join(outputDir, `${sanitizeFileName(name)}.json`);
   if (existsSync(expectedPath)) {
     console.error(`Cache already exists: ${expectedPath}`);
     console.error('Skipping precache (graph already generated for this commit).');
