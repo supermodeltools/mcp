@@ -1,63 +1,14 @@
-# ⭐ Supermodel MCP Server - Task-Specific Tools Variant
-
-**This is an experimental variant featuring task-specific query tools for focused code analysis.**
-
-[![npm](https://img.shields.io/npm/v/@supermodeltools/mcp-server)](https://www.npmjs.com/package/@supermodeltools/mcp-server)
-[![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
-
-## 🎯 What's Different?
-
-This variant adds **four specialized query tools** designed to provide focused, actionable answers for common code exploration tasks:
-
-### New Tools
-
-1. **`find_call_sites`** - Where is function X called?
-   - Fast lookup of all call locations
-   - Returns file paths, line numbers, and context
-
-2. **`trace_call_chain`** - What's the path from function A to B?
-   - BFS-based path finding
-   - Shows complete call chain with intermediate functions
-
-3. **`find_definition`** - Where is symbol X defined?
-   - O(1) symbol lookup
-   - Returns exact definition location
-
-4. **`trace_data_flow`** - How does parameter X flow through calls?
-   - Follows variables through call chains
-   - Tracks parameter propagation
-
-### Performance Results
-
-Evaluated on 10 SWE-bench Lite tasks:
-- ✅ **40% resolution rate** (4/10 tasks)
-- ✅ **2x better** than edge-metadata approach (20% resolution)
-- ✅ **9.2pp better Bash success rate** (82.7% vs 73.5%)
-- ✅ **34% fewer tool failures** (8.4% vs 12.9% failure rate)
-- ✅ **Same efficiency** as baseline (32.1 avg tool calls/task)
-
-## 📊 Evaluation Data
-
-See the parent repo for complete evaluation results:
-- [10-Task Comparison](https://github.com/supermodeltools/mcp/blob/main/10_TASK_COMPARISON.md)
-- [Raw Data](https://github.com/supermodeltools/mcp/blob/main/RAW_DATA_10_TASKS.md)
-- [Full Logs](https://github.com/supermodeltools/mcp/blob/main/evaluation_logs_10tasks.tar.gz)
-
----
-
 # Supermodel MCP Server
 
 [![npm](https://img.shields.io/npm/v/@supermodeltools/mcp-server)](https://www.npmjs.com/package/@supermodeltools/mcp-server)
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
 [![CI](https://github.com/supermodeltools/mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/supermodeltools/mcp/actions/workflows/ci.yml)
 
-MCP server that provides deep codebase analysis to AI agents via the [Supermodel API](https://docs.supermodeltools.com). Enables Claude to understand code structure, dependencies, and relationships by generating comprehensive graphs from any repository. Use this to help AI agents explore unfamiliar code, plan refactorings, assess change impact, and understand system architecture.
+MCP server that gives AI agents instant codebase understanding via the [Supermodel API](https://docs.supermodeltools.com). Two tools — `overview` and `symbol_context` — backed by pre-computed code graphs for sub-second responses.
 
 ## Install
 
 ### Quick Setup (Recommended)
-
-Run the setup script to configure the recommended timeout settings:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/supermodeltools/mcp/main/setup.sh | bash
@@ -69,13 +20,8 @@ curl -sSL https://raw.githubusercontent.com/supermodeltools/mcp/main/setup.sh | 
 Download, review, then execute:
 
 ```bash
-# Download the script
 curl -sSL https://raw.githubusercontent.com/supermodeltools/mcp/main/setup.sh -o setup.sh
-
-# Review the contents
 cat setup.sh
-
-# Make executable and run
 chmod +x setup.sh
 ./setup.sh
 ```
@@ -90,8 +36,6 @@ cd mcp
 
 </details>
 
-This will configure `MCP_TOOL_TIMEOUT=900000` for optimal performance with large codebases.
-
 ### Manual Install
 
 ```bash
@@ -104,45 +48,6 @@ Or run directly:
 npx @supermodeltools/mcp-server
 ```
 
-## ⚠️ Important: Configure Timeout for Large Codebase Analysis
-
-The `explore_codebase` tool can take **5-15 minutes** to analyze large repositories. Most MCP clients have a default timeout of 60-120 seconds, which will cause the operation to fail prematurely.
-
-**Quick Setup:**
-
-Add this to your shell profile to set a 15-minute timeout:
-
-```bash
-export MCP_TOOL_TIMEOUT=900000
-```
-
-**Installation by Client:**
-
-<details>
-<summary><strong>Claude Code CLI</strong></summary>
-
-Add to your shell profile (`~/.zshrc` for macOS or `~/.bashrc` for Linux):
-
-```bash
-export MCP_TOOL_TIMEOUT=900000
-```
-
-Then reload your shell:
-
-```bash
-source ~/.zshrc  # or ~/.bashrc
-```
-
-Verify it's set:
-
-```bash
-echo $MCP_TOOL_TIMEOUT
-```
-
-</details>
-
-**Note:** Timeout configuration via `MCP_TOOL_TIMEOUT` is only supported in Claude Code CLI. For more details, see the [official Claude Code documentation](https://code.claude.com/docs/en/settings.md).
-
 ## Configuration
 
 Get your API key from the [Supermodel Dashboard](https://dashboard.supermodeltools.com).
@@ -151,31 +56,17 @@ Get your API key from the [Supermodel Dashboard](https://dashboard.supermodeltoo
 |----------|-------------|
 | `SUPERMODEL_API_KEY` | Your Supermodel API key (required) |
 | `SUPERMODEL_BASE_URL` | Override API base URL (optional) |
+| `SUPERMODEL_CACHE_DIR` | Directory for pre-computed graph cache files (optional) |
+| `SUPERMODEL_TIMEOUT_MS` | API request timeout in ms (default: 900000 / 15 min) |
+| `SUPERMODEL_NO_API_FALLBACK` | Set to disable on-demand API calls; cache-only mode (optional) |
 
 ### Global Setup (Recommended)
 
-Instead of adding your API key to each MCP config file, you can set it globally in your shell profile. This keeps your key in one place and automatically makes it available to all MCP clients.
-
-**For Zsh (macOS default):**
-
-Add to `~/.zshrc`:
+Set your API key globally in your shell profile so it's available to all MCP clients:
 
 ```bash
+# Add to ~/.zshrc (macOS) or ~/.bashrc (Linux)
 export SUPERMODEL_API_KEY="your-api-key"
-```
-
-**For Bash:**
-
-Add to `~/.bashrc` or `~/.bash_profile`:
-
-```bash
-export SUPERMODEL_API_KEY="your-api-key"
-```
-
-Then reload your shell:
-
-```bash
-source ~/.zshrc  # or ~/.bashrc
 ```
 
 With the API key set globally, you can omit the `env` block from your MCP configs:
@@ -191,35 +82,25 @@ With the API key set globally, you can omit the `env` block from your MCP config
 }
 ```
 
-### Default Working Directory (Optional)
-
-For automated benchmarking tools (like mcpbr) or batch processing, you can specify a default working directory as a command-line argument. When provided, the `explore_codebase` tool will use this directory automatically if no explicit `directory` parameter is given.
-
-**Command-line usage:**
-
-```bash
-npx @supermodeltools/mcp-server /path/to/repository
-```
-
-or with Node.js:
-
-```bash
-node dist/index.js /path/to/repository
-```
-
-**Example with benchmarking tools:**
-
-```yaml
-mcp_server:
-  command: "npx"
-  args: ["-y", "@supermodeltools/mcp-server", "{workdir}"]
-  env:
-    SUPERMODEL_API_KEY: "${SUPERMODEL_API_KEY}"
-```
-
-This allows the agent to call `explore_codebase()` without specifying a directory parameter, automatically using the configured default workdir. You can still override it by explicitly passing a `directory` parameter in individual tool calls.
-
 ## Usage
+
+### Claude Code CLI
+
+```bash
+claude mcp add supermodel --env SUPERMODEL_API_KEY=your-api-key -- npx -y @supermodeltools/mcp-server
+```
+
+Or if `SUPERMODEL_API_KEY` is already set in your shell environment:
+
+```bash
+claude mcp add supermodel -- npx -y @supermodeltools/mcp-server
+```
+
+Verify installation:
+
+```bash
+claude mcp list
+```
 
 ### Cursor
 
@@ -239,472 +120,106 @@ Add to `~/.cursor/mcp.json`:
 }
 ```
 
-### Claude Code CLI
+### Default Working Directory
 
-Add the MCP server with your API key:
-
-```bash
-claude mcp add supermodel --env SUPERMODEL_API_KEY=your-api-key -- npx -y @supermodeltools/mcp-server
-```
-
-Or if `SUPERMODEL_API_KEY` is already set in your shell environment:
+For benchmarking tools or batch processing, pass a default working directory as a CLI argument:
 
 ```bash
-claude mcp add supermodel -- npx -y @supermodeltools/mcp-server
+npx @supermodeltools/mcp-server /path/to/repository
 ```
 
-Verify installation:
-
-```bash
-claude mcp list
-```
-
-## Health Checks
-
-This MCP server implements the [MCP ping utility](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/ping) for connection health monitoring. The ping mechanism allows clients to verify that the server is responsive and the connection remains alive.
-
-### How It Works
-
-- **Request**: Client sends a `ping` JSON-RPC request with no parameters
-- **Response**: Server responds promptly with an empty result object `{}`
-- **Automatic**: Handled automatically by the MCP SDK - no additional configuration needed
-
-### Use Cases
-
-- **Pre-flight checks**: Verify server is accessible before starting work
-- **Connection monitoring**: Detect stale connections during long-running sessions
-- **Periodic health checks**: Confirm server remains responsive
-
-### Example
-
-```json
-// Request
-{
-  "jsonrpc": "2.0",
-  "id": "123",
-  "method": "ping"
-}
-
-// Response
-{
-  "jsonrpc": "2.0",
-  "id": "123",
-  "result": {}
-}
-```
-
-If the server doesn't respond within a reasonable timeout (typically 5-10 seconds), the connection should be considered stale.
-
-For more details, see the [MCP specification for ping/health checks](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/ping).
+Tools will use this directory automatically if no explicit `directory` parameter is given.
 
 ## Tools
 
-### `explore_codebase`
+### `overview`
 
-Analyzes code structure, dependencies, and relationships across a repository. Use this to understand unfamiliar codebases, plan refactorings, assess change impact, or map system architecture.
+Returns a pre-computed architectural map of the codebase in sub-second time. Call this first on any new task.
 
-**When to use:**
-- Exploring new codebases
-- Planning refactors or architectural changes
-- Understanding dependencies between modules
-- Mapping call relationships and code flow
-- Assessing the impact of proposed changes
-
-**What you get:**
-- Dependency graphs (module/package relationships)
-- Call graphs (function-level call hierarchies)
-- Domain classifications (architectural patterns)
-- AST relationships (structural analysis)
-- Summary statistics (languages, complexity, file counts)
+**Output includes:**
+- Top architectural domains and their key files
+- Most-called hub functions (call graph centrality)
+- File, function, and class counts
+- Primary language and graph statistics
 
 **Parameters:**
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `directory` | string | Yes* | Path to repository directory (automatic zipping) |
-| `file` | string | Yes* | Path to pre-zipped archive (deprecated) |
-| `query` | string | No | Query type (summary, search, list_nodes, etc.) |
-| `jq_filter` | string | No | jq filter for custom data extraction |
-
-\* Either `directory` (recommended) or `file` must be provided
+| `directory` | string | No | Path to repository directory. Omit if server was started with a default workdir. |
 
 **Example prompts:**
-- "Analyze the codebase at . to understand its architecture"
-- "Before I refactor the authentication module, analyze this repo to show me what depends on it"
-- "What's the structure of the codebase in /Users/me/project?"
+- "Give me an overview of this codebase"
+- "What's the architecture of this project?"
 
-**Automatic features:**
-- Respects `.gitignore` patterns automatically
-- Excludes sensitive files (`.env`, `*.pem`, credentials, etc.)
-- Skips dependencies (`node_modules`, `venv`, `vendor`)
-- Removes build outputs (`dist`, `build`, `out`)
-- Cleans up temporary files automatically
-- Cross-platform compatible
+### `symbol_context`
 
-### Individual Graph Tools
+Deep dive on a specific function, class, or method. Given a symbol name, instantly returns its definition location, all callers, all callees, domain membership, and related symbols in the same file.
 
-For targeted analysis, use these specialized tools instead of the comprehensive `explore_codebase`:
-
-#### `get_call_graph`
-
-Generate a function-level call graph showing caller/callee relationships.
-
-**Use this to:**
-- Find all functions that call a specific function
-- Find all functions called by a specific function
-- Trace call chains through the codebase
-- Understand function dependencies
+**Output includes:**
+- Definition location (file, line range)
+- Callers (who calls this symbol)
+- Callees (what this symbol calls)
+- Architectural domain membership
+- Related symbols in the same file
+- File import statistics
 
 **Parameters:**
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `directory` | string | Yes | Path to repository directory |
-| `jq_filter` | string | No | jq filter for custom data extraction |
+| `symbol` | string | Yes | Name of the function, class, or method. Supports `ClassName.method` syntax and partial matching. |
+| `directory` | string | No | Path to repository directory. Omit if server was started with a default workdir. |
 
-#### `get_dependency_graph`
+**Example prompts:**
+- "Look up the symbol `filter_queryset` in this codebase"
+- "What calls `QuerySet.filter` and what does it call?"
 
-Generate a module-level dependency graph showing import relationships.
+### Recommended Workflow
 
-**Use this to:**
-- Understand module dependencies
-- Find circular dependencies
-- Identify tightly coupled modules
-- Plan module extraction or refactoring
+1. Call `overview` to understand the codebase architecture
+2. Read the issue/bug description and identify relevant domains and symbols
+3. Call `symbol_context` on key symbols to understand their structural context
+4. Use Read/Grep to examine the actual source code at the identified locations
+5. Make your fix and verify with tests
 
-**Parameters:**
+## Pre-computed Graphs
 
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `directory` | string | Yes | Path to repository directory |
-| `jq_filter` | string | No | jq filter for custom data extraction |
+For fastest performance, pre-compute graphs ahead of time using the `precache` CLI subcommand. This calls the Supermodel API once and saves the result to disk, enabling sub-second tool responses with no API calls at runtime.
 
-#### `get_domain_graph`
-
-Generate a high-level domain classification graph.
-
-**Use this to:**
-- Understand the architectural domains in a codebase
-- See how code is organized into logical areas
-- Get a bird's-eye view of system structure
-- Identify domain boundaries
-
-**Parameters:**
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `directory` | string | Yes | Path to repository directory |
-| `jq_filter` | string | No | jq filter for custom data extraction |
-
-#### `get_parse_graph`
-
-Generate an AST-level parse graph with fine-grained code structure.
-
-**Use this to:**
-- Analyze detailed code structure
-- Find specific syntax patterns
-- Understand class/function definitions at AST level
-- Support precise refactoring operations
-
-**Parameters:**
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `directory` | string | Yes | Path to repository directory |
-| `jq_filter` | string | No | jq filter for custom data extraction |
-
-### Task-Specific Query Tools
-
-After generating a graph with any of the tools above, use these lightweight tools for focused queries. They run against the cached graph and return small, targeted results (<10KB, <5s).
-
-#### `find_call_sites`
-
-Find all locations where a specific function is called.
-
-**Parameters:**
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `path` | string | Yes | Path that was previously analyzed |
-| `function_name` | string | Yes | Name of the function to find call sites for |
-| `include_context` | boolean | No | Include surrounding code context |
-| `max_results` | number | No | Maximum number of results to return |
-
-#### `trace_call_chain`
-
-Find the shortest call path from function A to function B using BFS.
-
-**Parameters:**
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `path` | string | Yes | Path that was previously analyzed |
-| `from_function` | string | Yes | Starting function name |
-| `to_function` | string | Yes | Target function name |
-| `max_depth` | number | No | Maximum search depth |
-
-#### `find_definition`
-
-Locate where a symbol (function, class, variable, type) is defined.
-
-**Parameters:**
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `path` | string | Yes | Path that was previously analyzed |
-| `name` | string | Yes | Symbol name to find |
-| `type` | string | No | Symbol type: function, class, variable, or type |
-
-#### `trace_data_flow`
-
-Track how data flows through function parameters and variables.
-
-**Parameters:**
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `path` | string | Yes | Path that was previously analyzed |
-| `variable` | string | Yes | Variable or parameter name to trace |
-| `function_name` | string | No | Starting function for the trace |
-| `max_depth` | number | No | Maximum trace depth |
-
-### Feedback Tools
-
-#### `request_feature`
-
-Open a feature request issue on the supermodeltools/mcp GitHub repository. Requires a `GITHUB_TOKEN` environment variable with `public_repo` scope.
-
-#### `report_bug`
-
-Report a bug or unexpected behavior by opening an issue on the supermodeltools/mcp GitHub repository. Requires a `GITHUB_TOKEN` environment variable with `public_repo` scope.
-
-### Choosing the Right Tool
-
-| Tool | Best For | Output Size |
-|------|----------|-------------|
-| `explore_codebase` | Comprehensive analysis with built-in queries | Largest - all graph types |
-| `get_call_graph` | Function call tracing, debugging | Medium - functions only |
-| `get_dependency_graph` | Module refactoring, circular deps | Small - modules only |
-| `get_domain_graph` | Architecture overview | Smallest - domains only |
-| `get_parse_graph` | AST analysis, precise refactoring | Large - full AST |
-| `find_call_sites` | Where is function X called? | Small (<10KB) |
-| `trace_call_chain` | Path from function A to B | Small (<10KB) |
-| `find_definition` | Where is symbol X defined? | Small (<10KB) |
-| `trace_data_flow` | How does data flow through params? | Small (<10KB) |
-
-**Tip:** Start with `get_domain_graph` for a quick architecture overview, then use task-specific query tools (`find_call_sites`, `trace_call_chain`, etc.) for focused questions. Drill down with `get_call_graph` or `get_dependency_graph` for broader analysis.
-
-> **Note:** All graph tools accept a `directory` parameter and an optional `jq_filter`. Task-specific query tools use `path` instead. If you start the server with a default working directory (`node dist/index.js /path/to/repo`), directory arguments can be omitted from tool calls.
-
-## Tool Performance & Timeout Requirements
-
-The `explore_codebase` tool analyzes your entire repository to build a comprehensive code graph. Analysis time scales with repository size and complexity.
-
-| Tool | Typical Duration | Recommended Timeout | Repository Size |
-|------|------------------|---------------------|--------------------|
-| `explore_codebase` | 2-5 min | 600000ms (10 min) | Small (<1k files) |
-| `explore_codebase` | 5-10 min | 900000ms (15 min) | Medium (1k-10k files) |
-| `explore_codebase` | 10-15 min | 1200000ms (20 min) | Large (10k+ files) |
-
-**Default recommendation**: The server uses a 15-minute timeout (`900000ms`) by default, which works well for most medium-sized repositories.
-
-**Caching behavior**: The first run analyzes your codebase and caches the results. Subsequent queries on the same repository are typically much faster (seconds instead of minutes) as they use the cached graph.
-
-**Setting custom timeouts**: If you need to adjust the timeout for larger repositories, you can set the `SUPERMODEL_TIMEOUT_MS` environment variable:
-
-```json
-{
-  "mcpServers": {
-    "supermodel": {
-      "command": "npx",
-      "args": ["-y", "@supermodeltools/mcp-server"],
-      "env": {
-        "SUPERMODEL_API_KEY": "your-api-key",
-        "SUPERMODEL_TIMEOUT_MS": "1200000"
-      }
-    }
-  }
-}
-```
-
-## Troubleshooting
-
-### Timeout Errors
-
-#### "Request timeout"
-
-**Cause:** The analysis is taking longer than your MCP client's timeout allows (varies by client—Claude Code CLI defaults to ~2 minutes, Claude Desktop enforces 5 minutes). Large repositories or complex codebases may require more time to analyze.
-
-**Solutions:**
-
-1. **Analyze a subdirectory instead** - Target specific parts of your codebase:
-   ```bash
-   # Instead of analyzing the entire repo
-   explore_codebase(directory="/path/to/repo")
-
-   # Analyze just the core module
-   explore_codebase(directory="/path/to/repo/src/core")
-   ```
-
-2. **Increase your MCP client timeout** - For Claude Code CLI, set the `MCP_TOOL_TIMEOUT` environment variable:
-
-   ```bash
-   # Set timeout to 15 minutes (900000ms) for large codebase analysis
-   export MCP_TOOL_TIMEOUT=900000
-   ```
-
-   Then reload your shell or start a new terminal session. This timeout applies to all MCP tool executions.
-
-   **Note:** Timeout configuration is currently only supported in Claude Code CLI.
-
-3. **Verify `.gitignore` excludes build artifacts** - Ensure your repository excludes:
-   - `node_modules/`, `vendor/`, `venv/`
-   - `dist/`, `build/`, `out/`
-   - `.next/`, `.nuxt/`, `.cache/`
-
-   The MCP server automatically excludes these patterns when zipping, but `.gitignore` prevents them from being in your working directory in the first place—both improve performance and reduce analysis size.
-
-#### "Analysis interrupted mid-way"
-
-**Cause:** Network interruption or the MCP server process was terminated before completion.
-
-**Solutions:**
-
-1. **Check MCP server logs** - Logs location varies by client:
-
-   > **Note:** Log filenames match your MCP server name from the config. If you named it differently (e.g., `my-server`), look for `mcp-server-my-server.log` instead of `mcp-server-supermodel.log`.
-
-   **Claude Desktop (macOS):**
-   ```bash
-   tail -f ~/Library/Logs/Claude/mcp-server-supermodel.log
-   ```
-
-   **Claude Desktop (Windows):**
-   ```powershell
-   Get-Content "$env:APPDATA\Claude\Logs\mcp-server-supermodel.log" -Wait
-   ```
-
-   **Claude Desktop (Linux):**
-   ```bash
-   tail -f ~/.config/Claude/logs/mcp-server-supermodel.log
-   ```
-
-   **Cursor:**
-   ```bash
-   # Check the Cursor logs directory
-   tail -f ~/Library/Application\ Support/Cursor/logs/mcp-server-supermodel.log
-   ```
-
-   **Claude Code:**
-   ```bash
-   # Logs are shown in the terminal when running with verbose mode
-   claude --verbose
-   ```
-
-2. **Retry the analysis** - Temporary network issues often resolve on retry
-
-3. **Check your internet connection** - The analysis requires a stable connection to the Supermodel API
-
-4. **Verify the API is accessible:**
-   ```bash
-   curl -H "Authorization: Bearer YOUR_API_KEY" https://api.supermodeltools.com/health
-   ```
-
-#### "ERROR Request failed. Check the MCP server logs"
-
-**Multiple possible causes:**
-
-##### 1. Missing or invalid API key
-
-Check if your API key is set:
-```bash
-echo $SUPERMODEL_API_KEY
-```
-
-Verify it's valid at [Supermodel Dashboard](https://dashboard.supermodeltools.com).
-
-**Solution:**
-```bash
-# Set in your shell profile (~/.zshrc or ~/.bashrc)
-export SUPERMODEL_API_KEY="your-api-key"
-source ~/.zshrc
-
-# Or update your MCP client config with the correct key
-```
-
-##### 2. API service outage or rate limiting
-
-Check the error details in logs (see log locations above).
-
-**Solution:**
-- Visit [Supermodel Status](https://status.supermodeltools.com) for service status
-- If rate limited, wait a few minutes before retrying
-- Consider upgrading your API plan if hitting rate limits frequently
-
-##### 3. Repository too large
-
-The API has size limits for analysis. Check the [Supermodel documentation](https://docs.supermodeltools.com) for current limits.
-
-**Solution:**
-```bash
-# Check your repo size
-du -sh /path/to/repo
-
-# If too large, analyze subdirectories instead
-explore_codebase(directory="/path/to/repo/src")
-```
-
-##### 4. Network or firewall issues
-
-Corporate firewalls may block outbound requests to the Supermodel API.
-
-**Solution:**
-- Test connectivity: `curl https://api.supermodeltools.com/health`
-- Check firewall rules allow HTTPS to `api.supermodeltools.com`
-- Contact your IT department if behind a corporate proxy
-
-### Debug Logging
-
-Debug logs go to stderr and include:
-
-- `[DEBUG] Server configuration:` - Startup config
-- `[DEBUG] Auto-zipping directory:` - Starting zip creation
-- `[DEBUG] Auto-zip complete:` - Zip stats (file count, size)
-- `[DEBUG] Making API request` - Request details
-- `[ERROR] API call failed:` - Error details with HTTP status
-
-To enable verbose logging, set the `DEBUG` environment variable:
+### Pre-compute a graph
 
 ```bash
-# In your MCP config
-{
-  "mcpServers": {
-    "supermodel": {
-      "command": "npx",
-      "args": ["-y", "@supermodeltools/mcp-server"],
-      "env": {
-        "SUPERMODEL_API_KEY": "your-api-key",
-        "DEBUG": "supermodel:*"
-      }
-    }
-  }
-}
+npx @supermodeltools/mcp-server precache /path/to/repo --output-dir ./supermodel-cache
 ```
 
-### Common Issues
+Options:
+- `--output-dir <dir>` — Directory to save the cache file (default: `./supermodel-cache` or `SUPERMODEL_CACHE_DIR`)
+- `--name <name>` — Repository name for the cache key (default: auto-detected from git remote + commit hash)
 
-- **401 Unauthorized:** Check `SUPERMODEL_API_KEY` is set correctly
-- **ZIP too large:** Directory contains too many files/dependencies. Ensure `.gitignore` is configured properly
-- **Permission denied:** Check read permissions on the directory
-- **Insufficient disk space:** Free up space in your system's temp directory
-- **Directory does not exist:** Verify the path is correct and absolute
-- **ENOTFOUND or connection errors:** Check your internet connection and firewall settings
+### Use cached graphs at runtime
+
+```bash
+SUPERMODEL_CACHE_DIR=./supermodel-cache npx @supermodeltools/mcp-server
+```
+
+The server loads all cached graphs from `SUPERMODEL_CACHE_DIR` at startup. If no cache exists for a given repository, the server falls back to an on-demand API call (which takes 5-15 minutes for large repos).
+
+### Startup precaching
+
+Use the `--precache` flag to automatically generate and cache the graph for the default workdir on server startup:
+
+```bash
+npx @supermodeltools/mcp-server /path/to/repo --precache
+```
+
+This is useful in automated environments (e.g., Docker containers for benchmarking) where you want the graph ready before any tool calls.
 
 ## Benchmarking
 
-Benchmark this MCP server using [mcpbr](https://github.com/caspianmoon/mcpbr-benchmark-caching) with the provided [`mcpbr-config.yaml`](./mcpbr-config.yaml) configuration.
+Benchmark this MCP server using [mcpbr](https://github.com/greynewell/mcpbr) with the provided [`mcpbr-config.yaml`](./mcpbr-config.yaml) configuration.
 
-## Local Development & Testing
+## Local Development
 
 ### Building from Source
 
@@ -718,23 +233,17 @@ npm run build
 ### Running Locally
 
 ```bash
-# Start the MCP server
-node dist/index.js
-
-# Or with a default working directory
-node dist/index.js /path/to/repo
+node dist/index.js                    # Start MCP server
+node dist/index.js /path/to/repo      # With default workdir
+node dist/index.js precache /path/to/repo  # Pre-compute graph
 ```
 
-### Testing Tools Locally
-
-Run the integration tests to verify the server and tools:
+### Running Tests
 
 ```bash
-# Run all tests including integration tests
-npm test
-
-# Run only integration tests
-npm test -- src/server.integration.test.ts
+npm test              # Run all tests
+npm run test:coverage # Run with coverage
+npm run typecheck     # Type checking
 ```
 
 ### Using MCP Inspector
@@ -742,29 +251,42 @@ npm test -- src/server.integration.test.ts
 For interactive testing, use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
 ```bash
-# Install the inspector
-npm install -g @modelcontextprotocol/inspector
-
-# Run with your server
 npx @modelcontextprotocol/inspector node dist/index.js
 ```
 
-This opens a web UI where you can:
-- See all available tools
-- Call tools with custom arguments
-- View responses in real-time
+## Troubleshooting
 
-### Running Tests
+### Timeout Errors
 
-```bash
-# Run all tests
-npm test
+The first analysis of a repository requires an API call that can take 5-15 minutes. If your MCP client times out:
 
-# Run with coverage
-npm run test:coverage
+1. **Pre-compute the graph** — Use `precache` to generate the graph ahead of time (see [Pre-computed Graphs](#pre-computed-graphs))
+2. **Increase your MCP client timeout** — For Claude Code CLI, set `MCP_TOOL_TIMEOUT=900000` in your shell profile
+3. **Analyze a subdirectory** — Target specific parts of your codebase to reduce analysis time
 
-# Type checking
-npm run typecheck
+### Common Issues
+
+- **401 Unauthorized:** Check `SUPERMODEL_API_KEY` is set correctly
+- **Permission denied:** Check read permissions on the directory
+- **ENOTFOUND or connection errors:** Check your internet connection and firewall settings
+
+### Debug Logging
+
+Set the `DEBUG` environment variable for verbose logging:
+
+```json
+{
+  "mcpServers": {
+    "supermodel": {
+      "command": "npx",
+      "args": ["-y", "@supermodeltools/mcp-server"],
+      "env": {
+        "SUPERMODEL_API_KEY": "your-api-key",
+        "DEBUG": "supermodel:*"
+      }
+    }
+  }
+}
 ```
 
 ## Links
