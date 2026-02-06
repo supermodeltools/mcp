@@ -45,7 +45,8 @@ export const tool: Tool = {
 };
 
 export const handler: HandlerFunction = async (client, args, defaultWorkdir) => {
-  const directory = (args?.directory as string) ?? defaultWorkdir;
+  const rawDir = args?.directory as string | undefined;
+  const directory = (rawDir && rawDir.trim()) || defaultWorkdir || process.cwd();
 
   if (!directory || typeof directory !== 'string') {
     return asErrorResult({
