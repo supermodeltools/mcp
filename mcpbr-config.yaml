@@ -9,9 +9,13 @@ mcp_server:
   args:
     - "-y"
     - "@supermodeltools/mcp-server@0.9.0"
+    - "{workdir}"
+    - "--precache"
   env:
     SUPERMODEL_API_KEY: "${SUPERMODEL_API_KEY}"
     SUPERMODEL_BASE_URL: "https://api.supermodeltools.com"
+  setup_command: "npx -y @supermodeltools/mcp-server@0.9.0 precache {workdir}"
+  setup_timeout_ms: 900000
 
 provider: "anthropic"
 
