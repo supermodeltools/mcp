@@ -47,7 +47,7 @@ describe('MCP Server Integration', () => {
       );
     }
 
-    server = spawn('node', [distPath], {
+    server = spawn('node', [distPath, '--no-api-fallback'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env }
     });
@@ -165,7 +165,9 @@ describe('MCP Server Integration', () => {
   });
 
   describe('tools/call validation', () => {
-    it('should return validation error for missing directory on overview', async () => {
+    it('should return NO_CACHE error for overview when no cache and API disabled', async () => {
+      // Server runs with --no-api-fallback, so overview with no pre-computed
+      // cache returns a fast, deterministic NO_CACHE error (no API call).
       const result = await sendRequest('tools/call', {
         name: 'overview',
         arguments: {}
@@ -174,8 +176,8 @@ describe('MCP Server Integration', () => {
       expect(result.content).toBeDefined();
       expect(result.content[0].type).toBe('text');
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.error.code).toBe('MISSING_DIRECTORY');
-      expect(parsed.error.type).toBe('validation_error');
+      expect(parsed.error).toBeDefined();
+      expect(parsed.error.code).toBe('NO_CACHE');
     });
 
     it('should return validation error for missing symbol on symbol_context', async () => {

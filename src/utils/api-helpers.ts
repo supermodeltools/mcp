@@ -73,6 +73,17 @@ export function classifyApiError(error: any): StructuredError {
     };
   }
 
+  // Fast-fail: no pre-computed cache and API fallback disabled
+  if (error.code === 'NO_CACHE') {
+    return {
+      type: 'cache_error',
+      message: error.message || 'No pre-computed graph available for this repository.',
+      code: 'NO_CACHE',
+      recoverable: false,
+      suggestion: 'Use grep, find, and file reading to explore the codebase instead. Or run the precache command and set SUPERMODEL_CACHE_DIR.',
+    };
+  }
+
   if (error.response) {
     const status = error.response.status;
 
