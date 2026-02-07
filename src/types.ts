@@ -52,7 +52,8 @@ type ErrorType =
   | 'validation_error'
   | 'network_error'
   | 'internal_error'
-  | 'not_found_error';
+  | 'not_found_error'
+  | 'cache_error';
 
 export interface StructuredError {
   type: ErrorType;
