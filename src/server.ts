@@ -153,26 +153,27 @@ Supports partial matching and "ClassName.method" syntax.
       }
     }
 
+    // Connect transport FIRST so the MCP handshake completes immediately.
+    // This prevents Claude Code from timing out the server (MCP_TIMEOUT=60s)
+    // when precaching requires a slow API call.
+    const transport = new StdioServerTransport();
+    await this.server.connect(transport);
+    logger.info('Supermodel MCP Server running on stdio');
+
     // Precache the workdir's repo if --precache flag is set.
-    // Runs BEFORE noApiFallback is set so the API is available.
-    // On first run for a repo this calls the Supermodel API (5-15 min).
-    // The API has server-side idempotency caching, so repeated calls
-    // with the same repo+commit return instantly. Results are saved to
-    // cacheDir for cross-container persistence.
+    // Runs AFTER connect but BEFORE noApiFallback so the API is available.
+    // This is fire-and-forget from the MCP client's perspective — tools
+    // that arrive before precaching finishes will use on-demand API calls.
     if (this.options?.precache && this.defaultWorkdir) {
       try {
         await precacheForDirectory(this.client, this.defaultWorkdir, cacheDir);
       } catch (err: any) {
-        // Non-fatal: if precaching fails, tools fall back to no-cache error
+        // Non-fatal: if precaching fails, tools fall back to on-demand API
         logger.warn('Startup precache failed:', err.message || err);
       }
     }
 
     // NOW enable no-api-fallback (after precaching had its chance)
     setNoApiFallback(!!this.options?.noApiFallback);
-
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    logger.info('Supermodel MCP Server running on stdio');
   }
 }

@@ -202,6 +202,14 @@ async function handlePrecache(args: string[]) {
   console.error('Done! To use this cache, set SUPERMODEL_CACHE_DIR=' + outputDir);
 }
 
+// Graceful shutdown on signals (e.g., container stop, SSH drop)
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(signal, () => {
+    logger.debug(`Received ${signal}, shutting down`);
+    process.exit(0);
+  });
+}
+
 main().catch((error) => {
   logger.error('Fatal error:', error);
   process.exit(1);
