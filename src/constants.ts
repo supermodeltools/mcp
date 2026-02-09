@@ -25,3 +25,19 @@ export const MAX_SYMBOL_CALLERS = 10; // Top N callers to show
 export const MAX_SYMBOL_CALLEES = 10; // Top N callees to show
 export const MAX_SYMBOL_RELATED = 8; // Related symbols in same file
 export const MAX_SOURCE_LINES = 50; // Max lines of source code to include inline
+
+// generate subcommand limits (Supermodel.md renderer)
+export const MAX_GENERATE_HUB_FUNCTIONS = 20;
+export const MAX_GENERATE_SYMBOL_CLASSES = 50;
+export const MAX_GENERATE_SYMBOL_FUNCTIONS = 100;
+export const MAX_GENERATE_HOTSPOTS = 20;
+export const MAX_GENERATE_HOTSPOT_EDGES = 10;
+export const MAX_GENERATE_FILE_MAP_FILES = 200;
+export const MAX_GENERATE_IMPORT_FILES = 50;
+export const MAX_GENERATE_TEST_MAP = 100;
+
+// get_related tool limits
+export const MAX_RELATED_TARGETS = 5; // Max number of targets in a get_related query
+export const MAX_RELATED_DEPTH = 3; // Max BFS depth for connecting paths
+export const DEFAULT_RELATED_DEPTH = 2; // Default BFS depth
+export const MAX_BRIDGE_SOURCE_LINES = 30; // Max source lines for bridge node snippets

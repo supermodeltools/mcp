@@ -5,6 +5,7 @@
  * Usage:
  *   node dist/index.js [workdir] [--no-api-fallback]  -- Start MCP server
  *   node dist/index.js precache <dir> [--output-dir <dir>]  -- Pre-compute graph for a repo
+ *   node dist/index.js generate <dir> [--output <path>] [--cache-dir <dir>]  -- Generate Supermodel.md
  *
  * @module index
  */
@@ -17,6 +18,13 @@ async function main() {
   // Handle precache subcommand
   if (args[0] === 'precache') {
     await handlePrecache(args.slice(1));
+    return;
+  }
+
+  // Handle generate subcommand
+  if (args[0] === 'generate') {
+    const { handleGenerate } = require('./generate');
+    await handleGenerate(args.slice(1));
     return;
   }
 
