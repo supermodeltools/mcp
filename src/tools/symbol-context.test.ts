@@ -112,16 +112,17 @@ describe('findSymbol', () => {
 // ── renderSymbolContext + source code tests (Issue #108) ──
 
 describe('renderSymbolContext', () => {
-  let tmpDir: string;
+  const tmpDirs: string[] = [];
 
   afterAll(async () => {
-    if (tmpDir) {
-      await fs.rm(tmpDir, { recursive: true, force: true });
-    }
+    await Promise.all(
+      tmpDirs.map(dir => fs.rm(dir, { recursive: true, force: true }).catch(() => {}))
+    );
   });
 
   it('includes fenced code block with source code', async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'symbol-ctx-test-'));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'symbol-ctx-test-'));
+    tmpDirs.push(tmpDir);
     const filePath = 'hello.py';
     await fs.writeFile(path.join(tmpDir, filePath), [
       'def hello():',
@@ -141,7 +142,8 @@ describe('renderSymbolContext', () => {
   });
 
   it('truncates files longer than MAX_SOURCE_LINES', async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'symbol-ctx-test-'));
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'symbol-ctx-test-'));
+    tmpDirs.push(tmpDir);
     const filePath = 'big.py';
     const totalLines = MAX_SOURCE_LINES + 20;
     const fileContent = Array.from({ length: totalLines }, (_, i) => `    line_${i + 1}`);
