@@ -64,18 +64,21 @@ export class Server {
 
 Two tools for instant codebase understanding. Pre-computed graphs enable sub-second responses.
 
-## When to use each tool
+## Recommended workflow
+1. \`overview\` first to learn architecture and key symbols (1 call)
+2. \`symbol_context\` on 1-2 symbols from the issue to see source, callers, callees (1-2 calls)
+3. Stop calling MCP tools. Use the results to make your fix.
 
-- **Issue mentions specific files or functions** → go directly to \`symbol_context\` on those names, or read the files.
-- **Unfamiliar codebase with no starting point** → call \`overview\` first to learn the architecture, then \`symbol_context\` on relevant symbols.
-- **Stack trace or error message** → call \`symbol_context\` on the function names in the trace to see callers, callees, and domain context.
+## Anti-patterns
+- >3 MCP calls = diminishing returns. The sweet spot is 1-2 calls.
+- Chasing callers-of-callers burns iterations without helping.
 
-## \`overview\`
-Returns the architecture map: domains, key files, hub functions, file/class/function counts. Sub-second, zero cost.
+## After fixing
+Run the project's existing test suite (e.g. pytest). Do NOT write standalone test scripts.
 
-## \`symbol_context\`
-Given a function, class, or method name, returns its definition location, source code, callers, callees, domain membership, and related symbols in the same file.
-Supports partial matching and "ClassName.method" syntax.`,
+## Tool reference
+- \`overview\`: Architecture map, domains, hub functions, file counts. Zero-arg, sub-second.
+- \`symbol_context\`: Source, callers, callees, domain for any function/class/method. Supports "Class.method" and partial matching.`,
       },
     );
 
