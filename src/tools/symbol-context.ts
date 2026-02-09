@@ -1,8 +1,9 @@
 /**
  * `symbol_context` tool -- deep dive on a specific symbol.
  *
- * Given a function, class, or method name, returns (<5KB markdown):
+ * Given a function, class, or method name, returns (<10KB markdown):
  *  - Definition location (file, line)
+ *  - Source code (up to MAX_SOURCE_LINES)
  *  - Callers (who calls this)
  *  - Callees (what this calls)
  *  - Domain membership
@@ -11,6 +12,8 @@
  * Backed by pre-computed graphs (sub-second) with on-demand API fallback.
  */
 
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
   Endpoint,
@@ -29,12 +32,13 @@ import {
   MAX_SYMBOL_CALLERS,
   MAX_SYMBOL_CALLEES,
   MAX_SYMBOL_RELATED,
+  MAX_SOURCE_LINES,
 } from '../constants';
 
 export const tool: Tool = {
   name: 'symbol_context',
   description:
-    `Strictly better than grep for understanding a function, class, or method. Given a symbol name, instantly returns its definition location, all callers, all callees, architectural domain, and related symbols in the same file -- structural context that grep cannot reconstruct. Sub-second, zero cost. Supports partial matching ("filter" finds "QuerySet.filter", "filter_queryset", etc.) and "ClassName.method" syntax. Use this whenever you have a symbol name from a stack trace, issue, or search result and need to understand how it connects to the rest of the codebase.`,
+    `Strictly better than grep for understanding a function, class, or method. Given a symbol name, instantly returns its source code, definition location, all callers, all callees, architectural domain, and related symbols in the same file -- structural context that grep cannot reconstruct. Sub-second, zero cost. Supports partial matching ("filter" finds "QuerySet.filter", "filter_queryset", etc.) and "ClassName.method" syntax. Use this whenever you have a symbol name from a stack trace, issue, or search result and need to understand how it connects to the rest of the codebase.`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -99,10 +103,10 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
   }
 
   // Render results for top matches (usually 1, sometimes a few)
-  const rendered = matches
-    .slice(0, 3)
-    .map(node => renderSymbolContext(graph, node))
-    .join('\n---\n\n');
+  const renderedParts = await Promise.all(
+    matches.slice(0, 3).map(node => renderSymbolContext(graph, node, directory))
+  );
+  const rendered = renderedParts.join('\n---\n\n');
 
   if (matches.length > 3) {
     return asTextContentResult(
@@ -115,7 +119,7 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
 
 // ── Symbol lookup ──
 
-function findSymbol(graph: IndexedGraph, query: string): CodeGraphNode[] {
+export function findSymbol(graph: IndexedGraph, query: string): CodeGraphNode[] {
   const lowerQuery = query.toLowerCase();
 
   // Handle "ClassName.method" syntax
@@ -133,7 +137,11 @@ function findSymbol(graph: IndexedGraph, query: string): CodeGraphNode[] {
     return exactIds
       .map(id => graph.nodeById.get(id)!)
       .filter(n => n && isCodeSymbol(n))
-      .sort((a, b) => symbolPriority(a) - symbolPriority(b));
+      .sort((a, b) => {
+        const pDiff = symbolPriority(a) - symbolPriority(b);
+        if (pDiff !== 0) return pDiff;
+        return callerCount(graph, b) - callerCount(graph, a);
+      });
   }
 
   // Strategy 2: ClassName.method match
@@ -153,14 +161,22 @@ function findSymbol(graph: IndexedGraph, query: string): CodeGraphNode[] {
       });
 
     if (matched.length > 0) {
-      return matched.sort((a, b) => symbolPriority(a) - symbolPriority(b));
+      return matched.sort((a, b) => {
+        const pDiff = symbolPriority(a) - symbolPriority(b);
+        if (pDiff !== 0) return pDiff;
+        return callerCount(graph, b) - callerCount(graph, a);
+      });
     }
   }
 
   // Strategy 3: Substring match (for partial names)
+  if (lowerQuery.length < 2) {
+    return [];
+  }
+
   const substringMatches: CodeGraphNode[] = [];
   for (const [name, ids] of graph.nameIndex) {
-    if (name.includes(lowerQuery) || lowerQuery.includes(name)) {
+    if (name.includes(lowerQuery)) {
       for (const id of ids) {
         const node = graph.nodeById.get(id);
         if (node && isCodeSymbol(node)) {
@@ -170,14 +186,16 @@ function findSymbol(graph: IndexedGraph, query: string): CodeGraphNode[] {
     }
   }
 
-  // Sort by relevance: exact prefix > contains > contained-in
+  // Sort by relevance: exact prefix > contains, then symbol priority, then caller count
   substringMatches.sort((a, b) => {
     const aName = (a.properties?.name as string || '').toLowerCase();
     const bName = (b.properties?.name as string || '').toLowerCase();
     const aPrefix = aName.startsWith(lowerQuery) ? 0 : 1;
     const bPrefix = bName.startsWith(lowerQuery) ? 0 : 1;
     if (aPrefix !== bPrefix) return aPrefix - bPrefix;
-    return symbolPriority(a) - symbolPriority(b);
+    const pDiff = symbolPriority(a) - symbolPriority(b);
+    if (pDiff !== 0) return pDiff;
+    return callerCount(graph, b) - callerCount(graph, a);
   });
 
   return substringMatches.slice(0, 10);
@@ -196,9 +214,13 @@ function symbolPriority(node: CodeGraphNode): number {
   return 3;
 }
 
+function callerCount(graph: IndexedGraph, node: CodeGraphNode): number {
+  return graph.callAdj.get(node.id)?.in.length || 0;
+}
+
 // ── Rendering ──
 
-function renderSymbolContext(graph: IndexedGraph, node: CodeGraphNode): string {
+export async function renderSymbolContext(graph: IndexedGraph, node: CodeGraphNode, directory: string): Promise<string> {
   const name = node.properties?.name as string || '(unknown)';
   const rawFilePath = node.properties?.filePath as string || '';
   const filePath = normalizePath(rawFilePath);
@@ -221,6 +243,31 @@ function renderSymbolContext(graph: IndexedGraph, node: CodeGraphNode): string {
     lines.push(`**Domain:** ${domain}`);
   }
   lines.push('');
+
+  // Source code
+  if (filePath && startLine > 0) {
+    try {
+      const absPath = path.resolve(directory, filePath);
+      const content = await fs.readFile(absPath, 'utf-8');
+      const fileLines = content.split('\n');
+      const end = endLine > 0 ? Math.min(endLine, startLine + MAX_SOURCE_LINES - 1) : startLine + MAX_SOURCE_LINES - 1;
+      const sourceSlice = fileLines.slice(startLine - 1, end);
+      if (sourceSlice.length > 0) {
+        const lang = languageFromExtension(filePath);
+        lines.push(`### Source`);
+        lines.push('');
+        lines.push(`\`\`\`${lang}`);
+        lines.push(sourceSlice.join('\n'));
+        lines.push('```');
+        if (endLine > 0 && endLine > startLine + MAX_SOURCE_LINES - 1) {
+          lines.push(`*... truncated (showing ${MAX_SOURCE_LINES} of ${endLine - startLine + 1} lines)*`);
+        }
+        lines.push('');
+      }
+    } catch {
+      // File unreadable — skip source section silently
+    }
+  }
 
   // Callers
   const adj = graph.callAdj.get(node.id);
@@ -329,6 +376,49 @@ function renderSymbolContext(graph: IndexedGraph, node: CodeGraphNode): string {
   }
 
   return lines.join('\n');
+}
+
+export function languageFromExtension(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  const map: Record<string, string> = {
+    '.ts': 'typescript',
+    '.tsx': 'typescript',
+    '.js': 'javascript',
+    '.jsx': 'javascript',
+    '.py': 'python',
+    '.rb': 'ruby',
+    '.go': 'go',
+    '.rs': 'rust',
+    '.java': 'java',
+    '.kt': 'kotlin',
+    '.cs': 'csharp',
+    '.cpp': 'cpp',
+    '.c': 'c',
+    '.h': 'c',
+    '.hpp': 'cpp',
+    '.swift': 'swift',
+    '.php': 'php',
+    '.scala': 'scala',
+    '.sh': 'bash',
+    '.bash': 'bash',
+    '.yaml': 'yaml',
+    '.yml': 'yaml',
+    '.json': 'json',
+    '.xml': 'xml',
+    '.html': 'html',
+    '.css': 'css',
+    '.sql': 'sql',
+    '.r': 'r',
+    '.lua': 'lua',
+    '.dart': 'dart',
+    '.ex': 'elixir',
+    '.exs': 'elixir',
+    '.erl': 'erlang',
+    '.hs': 'haskell',
+    '.ml': 'ocaml',
+    '.clj': 'clojure',
+  };
+  return map[ext] || '';
 }
 
 function findDomain(graph: IndexedGraph, nodeId: string): string | null {

@@ -24,3 +24,4 @@ export const MAX_OVERVIEW_HUB_FUNCTIONS = 10; // Top N hub functions to show
 export const MAX_SYMBOL_CALLERS = 10; // Top N callers to show
 export const MAX_SYMBOL_CALLEES = 10; // Top N callees to show
 export const MAX_SYMBOL_RELATED = 8; // Related symbols in same file
+export const MAX_SOURCE_LINES = 50; // Max lines of source code to include inline
