@@ -64,21 +64,18 @@ export class Server {
 
 Two tools for instant codebase understanding. Pre-computed graphs enable sub-second responses.
 
-## \`overview\` — Start here
-Get the architecture map: domains, key files, hub functions, file/class/function counts.
-Call this first on any new task to understand WHERE in the codebase to look.
+## When to use each tool
 
-## \`symbol_context\` — Deep dive on a symbol
-Given a function, class, or method name, get its definition location, callers, callees, domain membership, and related symbols in the same file.
-Use this when you know WHAT to investigate (e.g. from an issue description, stack trace, or grep result).
-Supports partial matching and "ClassName.method" syntax.
+- **Issue mentions specific files or functions** → go directly to \`symbol_context\` on those names, or read the files.
+- **Unfamiliar codebase with no starting point** → call \`overview\` first to learn the architecture, then \`symbol_context\` on relevant symbols.
+- **Stack trace or error message** → call \`symbol_context\` on the function names in the trace to see callers, callees, and domain context.
 
-## Recommended workflow
-1. Call \`overview\` to understand the codebase architecture
-2. Read the issue/bug description and identify relevant domains and symbols
-3. Call \`symbol_context\` on key symbols to understand their structural context
-4. Use Read/Grep to examine the actual source code at the identified locations
-5. Make your fix and verify with tests`,
+## \`overview\`
+Returns the architecture map: domains, key files, hub functions, file/class/function counts. Sub-second, zero cost.
+
+## \`symbol_context\`
+Given a function, class, or method name, returns its definition location, source code, callers, callees, domain membership, and related symbols in the same file.
+Supports partial matching and "ClassName.method" syntax.`,
       },
     );
 

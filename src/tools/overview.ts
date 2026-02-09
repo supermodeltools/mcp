@@ -30,7 +30,7 @@ import {
 export const tool: Tool = {
   name: 'overview',
   description:
-    `CALL THIS FIRST before grep or find. Returns a pre-computed architectural map of the entire codebase in sub-second time at zero cost. Gives you what grep/find cannot: which domains own which files, the most-called hub functions (call graph centrality), and how the codebase is structured across domains. Output is a concise summary with top architectural domains and their key files, highest-traffic functions, and file/function/class counts. Use this to know exactly where to look instead of guessing with grep.`,
+    `Returns a pre-computed architectural map of the entire codebase: which domains own which files, the most-called hub functions (call graph centrality), file/function/class counts. Sub-second, zero cost. Useful when you need to understand the overall structure before diving in. Skip this if you already know what file or symbol to investigate — use symbol_context or file reading instead.`,
   inputSchema: {
     type: 'object',
     properties: {
