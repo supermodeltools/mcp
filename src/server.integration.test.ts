@@ -135,20 +135,21 @@ describe('MCP Server Integration', () => {
   });
 
   describe('tools/list', () => {
-    it('should list exactly 2 tools', async () => {
+    it('should list exactly 3 tools', async () => {
       const result = await sendRequest('tools/list', {});
 
       expect(result.tools).toBeDefined();
       expect(Array.isArray(result.tools)).toBe(true);
-      expect(result.tools.length).toBe(2);
+      expect(result.tools.length).toBe(3);
     });
 
-    it('should include overview and symbol_context tools', async () => {
+    it('should include overview, symbol_context, and get_related tools', async () => {
       const result = await sendRequest('tools/list', {});
       const toolNames = result.tools.map((t: any) => t.name);
 
       expect(toolNames).toContain('overview');
       expect(toolNames).toContain('symbol_context');
+      expect(toolNames).toContain('get_related');
     });
 
     it('should have correct schema for tools', async () => {

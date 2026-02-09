@@ -25,3 +25,9 @@ export const MAX_SYMBOL_CALLERS = 10; // Top N callers to show
 export const MAX_SYMBOL_CALLEES = 10; // Top N callees to show
 export const MAX_SYMBOL_RELATED = 8; // Related symbols in same file
 export const MAX_SOURCE_LINES = 50; // Max lines of source code to include inline
+
+// get_related tool limits
+export const MAX_RELATED_TARGETS = 5; // Max number of targets in a get_related query
+export const MAX_RELATED_DEPTH = 3; // Max BFS depth for connecting paths
+export const DEFAULT_RELATED_DEPTH = 2; // Default BFS depth
+export const MAX_BRIDGE_SOURCE_LINES = 30; // Max source lines for bridge node snippets

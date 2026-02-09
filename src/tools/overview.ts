@@ -30,7 +30,7 @@ import {
 export const tool: Tool = {
   name: 'overview',
   description:
-    `Returns a pre-computed architectural map of the entire codebase: which domains own which files, the most-called hub functions (call graph centrality), file/function/class counts. Sub-second, zero cost. Useful when you need to understand the overall structure before diving in. Skip this if you already know what file or symbol to investigate — use symbol_context or file reading instead.`,
+    `Returns a pre-computed architectural map of the entire codebase: which domains own which files, the most-called hub functions (call graph centrality), file/function/class counts. Sub-second, zero cost. Useful when you need to understand the overall structure before diving in. Skip this if you already know what file or symbol to investigate — use symbol_context, get_related, or file reading instead.`,
   inputSchema: {
     type: 'object',
     properties: {

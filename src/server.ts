@@ -11,6 +11,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
 import overviewTool from './tools/overview';
 import symbolContextTool from './tools/symbol-context';
+import getRelatedTool from './tools/get-related';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';
@@ -62,11 +63,12 @@ export class Server {
         capabilities: { tools: {}, logging: {} },
         instructions: `# Supermodel: Codebase Intelligence
 
-Two tools for instant codebase understanding. Pre-computed graphs enable sub-second responses.
+Three tools for instant codebase understanding. Pre-computed graphs enable sub-second responses.
 
 ## When to use each tool
 
 - **Issue mentions specific files or functions** → go directly to \`symbol_context\` on those names, or read the files.
+- **Need to trace a call chain between known symbols** → call \`get_related\` with start and end points instead of chaining multiple \`symbol_context\` calls.
 - **Unfamiliar codebase with no starting point** → call \`overview\` first to learn the architecture, then \`symbol_context\` on relevant symbols.
 - **Stack trace or error message** → call \`symbol_context\` on the function names in the trace to see callers, callees, and domain context.
 
@@ -75,7 +77,15 @@ Returns the architecture map: domains, key files, hub functions, file/class/func
 
 ## \`symbol_context\`
 Given a function, class, or method name, returns its definition location, source code, callers, callees, domain membership, and related symbols in the same file.
-Supports partial matching and "ClassName.method" syntax.`,
+Supports partial matching and "ClassName.method" syntax.
+
+## \`get_related\`
+Given 2-5 symbol names or file paths, returns the connecting call-graph paths between them in a single call. Use instead of chaining \`symbol_context\` calls.
+
+## Strategy
+- Do NOT chain more than 2 \`symbol_context\` calls to trace a call path — use \`get_related\` instead.
+- After making a fix, always run the relevant tests to verify before finishing.
+- Prefer reading source and making edits over exploring more symbols.`,
       },
     );
 
@@ -104,6 +114,7 @@ Supports partial matching and "ClassName.method" syntax.`,
     const allTools = [
       overviewTool,
       symbolContextTool,
+      getRelatedTool,
     ];
 
     // Create a map for quick handler lookup

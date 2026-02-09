@@ -38,7 +38,7 @@ import {
 export const tool: Tool = {
   name: 'symbol_context',
   description:
-    `Strictly better than grep for understanding a function, class, or method. Given a symbol name, instantly returns its source code, definition location, all callers, all callees, architectural domain, and related symbols in the same file -- structural context that grep cannot reconstruct. Sub-second, zero cost. Supports partial matching ("filter" finds "QuerySet.filter", "filter_queryset", etc.) and "ClassName.method" syntax. Use this whenever you have a symbol name from a stack trace, issue, or search result and need to understand how it connects to the rest of the codebase.`,
+    `Strictly better than grep for understanding a function, class, or method. Given a symbol name, instantly returns its source code, definition location, all callers, all callees, architectural domain, and related symbols in the same file -- structural context that grep cannot reconstruct. Sub-second, zero cost. Supports partial matching ("filter" finds "QuerySet.filter", "filter_queryset", etc.) and "ClassName.method" syntax. IMPORTANT: Do NOT chain more than 2 symbol_context calls to trace a call path — use get_related instead, which finds the connecting path in one call. After understanding the code, make your edit and run tests to verify.`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -108,13 +108,15 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
   );
   const rendered = renderedParts.join('\n---\n\n');
 
+  const hint = `\n\n---\n*Tip: Need to trace a call chain? Use \`get_related\` with start and end symbols instead of chaining symbol_context calls. Ready to fix? Edit the code and run tests.*`;
+
   if (matches.length > 3) {
     return asTextContentResult(
-      rendered + `\n\n*... and ${matches.length - 3} more matches. Use a more specific name to narrow results.*`
+      rendered + `\n\n*... and ${matches.length - 3} more matches. Use a more specific name to narrow results.*` + hint
     );
   }
 
-  return asTextContentResult(rendered);
+  return asTextContentResult(rendered + hint);
 };
 
 // ── Symbol lookup ──
