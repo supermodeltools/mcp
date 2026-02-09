@@ -70,7 +70,7 @@ Two tools for instant codebase understanding. Pre-computed graphs enable sub-sec
 3. Stop calling MCP tools. Use the results to make your fix.
 
 ## Anti-patterns
-- >3 MCP calls = diminishing returns. The sweet spot is 1-2 calls.
+- >3 MCP calls total = diminishing returns. Aim for 1 overview + 1-2 symbol lookups.
 - Chasing callers-of-callers burns iterations without helping.
 
 ## After fixing
