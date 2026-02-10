@@ -1,0 +1,38 @@
+name: Architecture Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supermodeltools/arch-docs@main
+        id: docs
+        with:
+          supermodel-api-key: ${{ secrets.SUPERMODEL_API_KEY }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ steps.docs.outputs.site-path }}
+
+      - uses: actions/deploy-pages@v4
+        id: deploy
