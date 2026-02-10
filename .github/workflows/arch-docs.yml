@@ -32,7 +32,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ steps.docs.outputs.site-path }}
+          path: ./arch-docs-output
 
       - uses: actions/deploy-pages@v4
         id: deploy
