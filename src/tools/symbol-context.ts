@@ -33,12 +33,15 @@ import {
   MAX_SYMBOL_CALLEES,
   MAX_SYMBOL_RELATED,
   MAX_SOURCE_LINES,
+  MAX_BATCH_SYMBOLS,
+  MAX_BRIEF_CALLERS,
+  MAX_BRIEF_CALLEES,
 } from '../constants';
 
 export const tool: Tool = {
   name: 'symbol_context',
   description:
-    `Strictly better than grep for understanding a function, class, or method. Given a symbol name, instantly returns its source code, definition location, all callers, all callees, architectural domain, and related symbols in the same file -- structural context that grep cannot reconstruct. Sub-second, zero cost. Supports partial matching ("filter" finds "QuerySet.filter", "filter_queryset", etc.) and "ClassName.method" syntax. Use this whenever you have a symbol name from a stack trace, issue, or search result and need to understand how it connects to the rest of the codebase.`,
+    `Strictly better than grep for understanding a function, class, or method. Given a symbol name, instantly returns its source code, definition location, all callers, all callees, architectural domain, and related symbols in the same file -- structural context that grep cannot reconstruct. Sub-second, zero cost, read-only. Supports partial matching ("filter" finds "QuerySet.filter", "filter_queryset", etc.) and "ClassName.method" syntax. You can issue multiple calls in parallel (read-only, no side effects) or batch symbols into one call via the "symbols" array.`,
   inputSchema: {
     type: 'object',
     properties: {
@@ -47,30 +50,58 @@ export const tool: Tool = {
         description:
           'Name of the function, class, or method to look up. Supports "ClassName.method" syntax.',
       },
+      symbols: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'Array of symbol names to look up in parallel. More efficient than multiple calls.',
+        maxItems: 10,
+      },
       directory: {
         type: 'string',
         description:
           'Path to the repository directory. Omit if the MCP server was started with a default workdir.',
       },
+      brief: {
+        type: 'boolean',
+        description:
+          'Return compact output (definition + callers only, no source code). Recommended when looking up 3+ symbols.',
+      },
     },
-    required: ['symbol'],
+    required: [],
+  },
+  annotations: {
+    readOnlyHint: true,
   },
 };
 
 export const handler: HandlerFunction = async (client, args, defaultWorkdir) => {
-  const symbol = typeof args?.symbol === 'string' ? args.symbol.trim() : '';
-  const rawDir = args?.directory as string | undefined;
-  const directory = (rawDir && rawDir.trim()) || defaultWorkdir || process.cwd();
+  // Extract symbol list: prefer `symbols` array, fall back to single `symbol`
+  let symbolList: string[];
+  const symbolsArg = args?.symbols;
+  const symbolArg = typeof args?.symbol === 'string' ? args.symbol.trim() : '';
 
-  if (!symbol) {
+  if (Array.isArray(symbolsArg) && symbolsArg.length > 0) {
+    symbolList = symbolsArg
+      .filter((s): s is string => typeof s === 'string')
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+      .slice(0, MAX_BATCH_SYMBOLS);
+  } else if (symbolArg) {
+    symbolList = [symbolArg];
+  } else {
     return asErrorResult({
       type: 'validation_error',
-      message: 'Missing required "symbol" parameter.',
+      message: 'Missing required "symbol" or "symbols" parameter.',
       code: 'MISSING_SYMBOL',
       recoverable: false,
       suggestion: 'Provide the name of a function, class, or method to look up.',
     });
   }
+
+  const brief = !!args?.brief;
+  const rawDir = args?.directory as string | undefined;
+  const directory = (rawDir && rawDir.trim()) || defaultWorkdir || process.cwd();
 
   if (!directory || typeof directory !== 'string') {
     return asErrorResult({
@@ -89,32 +120,40 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
     return asErrorResult(classifyApiError(error));
   }
 
-  // Find the symbol
-  const matches = findSymbol(graph, symbol);
+  const isBatch = symbolList.length > 1;
+  const useBrief = brief || isBatch;
 
-  if (matches.length === 0) {
-    return asTextContentResult(
-      `No symbol matching "${symbol}" found in the code graph.\n\n` +
-      `Try:\n` +
-      `- A different spelling or casing\n` +
-      `- Just the function name without the class prefix\n` +
-      `- Use the \`overview\` tool to see available domains and key functions`
-    );
+  const allRendered: string[] = [];
+  for (const sym of symbolList) {
+    const matches = findSymbol(graph, sym);
+
+    if (matches.length === 0) {
+      allRendered.push(
+        `## ${sym}\n\nNo symbol matching "${sym}" found in the code graph.`
+      );
+      continue;
+    }
+
+    if (useBrief) {
+      // Brief mode: compact output for each top match
+      const parts = matches.slice(0, 3).map(node => renderBriefSymbolContext(graph, node));
+      allRendered.push(parts.join('\n---\n\n'));
+      if (matches.length > 3) {
+        allRendered.push(`*... and ${matches.length - 3} more matches for "${sym}".*`);
+      }
+    } else {
+      // Full mode: detailed output (single symbol, not brief)
+      const parts = await Promise.all(
+        matches.slice(0, 3).map(node => renderSymbolContext(graph, node, directory))
+      );
+      allRendered.push(parts.join('\n---\n\n'));
+      if (matches.length > 3) {
+        allRendered.push(`*... and ${matches.length - 3} more matches. Use a more specific name to narrow results.*`);
+      }
+    }
   }
 
-  // Render results for top matches (usually 1, sometimes a few)
-  const renderedParts = await Promise.all(
-    matches.slice(0, 3).map(node => renderSymbolContext(graph, node, directory))
-  );
-  const rendered = renderedParts.join('\n---\n\n');
-
-  if (matches.length > 3) {
-    return asTextContentResult(
-      rendered + `\n\n*... and ${matches.length - 3} more matches. Use a more specific name to narrow results.*`
-    );
-  }
-
-  return asTextContentResult(rendered);
+  return asTextContentResult(allRendered.join('\n\n---\n\n'));
 };
 
 // ── Symbol lookup ──
@@ -219,6 +258,52 @@ function callerCount(graph: IndexedGraph, node: CodeGraphNode): number {
 }
 
 // ── Rendering ──
+
+export function renderBriefSymbolContext(graph: IndexedGraph, node: CodeGraphNode): string {
+  const name = node.properties?.name as string || '(unknown)';
+  const rawFilePath = node.properties?.filePath as string || '';
+  const filePath = normalizePath(rawFilePath);
+  const startLine = node.properties?.startLine as number || 0;
+  const endLine = node.properties?.endLine as number || 0;
+  const kind = node.properties?.kind as string || node.labels?.[0]?.toLowerCase() || 'symbol';
+  const language = node.properties?.language as string || '';
+
+  const lines: string[] = [];
+
+  lines.push(`## ${name}`);
+  lines.push(`**Defined in:** ${filePath}${startLine ? ':' + startLine : ''}${endLine ? '-' + endLine : ''}`);
+  lines.push(`**Type:** ${kind}${language ? ' (' + language + ')' : ''}`);
+
+  const domain = findDomain(graph, node.id);
+  if (domain) {
+    lines.push(`**Domain:** ${domain}`);
+  }
+
+  // Callers (inline, max MAX_BRIEF_CALLERS)
+  const adj = graph.callAdj.get(node.id);
+  if (adj && adj.in.length > 0) {
+    const callerNames = adj.in
+      .map(id => graph.nodeById.get(id))
+      .filter((n): n is CodeGraphNode => !!n)
+      .map(n => `\`${n.properties?.name as string || '(unknown)'}\``)
+      .slice(0, MAX_BRIEF_CALLERS);
+    const suffix = adj.in.length > MAX_BRIEF_CALLERS ? `, ... (${adj.in.length} total)` : '';
+    lines.push(`**Called by:** ${callerNames.join(', ')}${suffix}`);
+  }
+
+  // Callees (inline, max MAX_BRIEF_CALLEES)
+  if (adj && adj.out.length > 0) {
+    const calleeNames = adj.out
+      .map(id => graph.nodeById.get(id))
+      .filter((n): n is CodeGraphNode => !!n)
+      .map(n => `\`${n.properties?.name as string || '(unknown)'}\``)
+      .slice(0, MAX_BRIEF_CALLEES);
+    const suffix = adj.out.length > MAX_BRIEF_CALLEES ? `, ... (${adj.out.length} total)` : '';
+    lines.push(`**Calls:** ${calleeNames.join(', ')}${suffix}`);
+  }
+
+  return lines.join('\n');
+}
 
 export async function renderSymbolContext(graph: IndexedGraph, node: CodeGraphNode, directory: string): Promise<string> {
   const name = node.properties?.name as string || '(unknown)';

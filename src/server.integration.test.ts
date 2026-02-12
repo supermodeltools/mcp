@@ -135,55 +135,58 @@ describe('MCP Server Integration', () => {
   });
 
   describe('tools/list', () => {
-    it('should list exactly 2 tools', async () => {
+    it('should list exactly 1 tool', async () => {
       const result = await sendRequest('tools/list', {});
 
       expect(result.tools).toBeDefined();
       expect(Array.isArray(result.tools)).toBe(true);
-      expect(result.tools.length).toBe(2);
+      expect(result.tools.length).toBe(1);
     });
 
-    it('should include overview and symbol_context tools', async () => {
+    it('should include symbol_context tool', async () => {
       const result = await sendRequest('tools/list', {});
       const toolNames = result.tools.map((t: any) => t.name);
 
-      expect(toolNames).toContain('overview');
       expect(toolNames).toContain('symbol_context');
     });
 
-    it('should have correct schema for tools', async () => {
+    it('should have correct schema for symbol_context', async () => {
       const result = await sendRequest('tools/list', {});
-
-      const overviewTool = result.tools.find((t: any) => t.name === 'overview');
-      expect(overviewTool.inputSchema.properties.directory).toBeDefined();
 
       const symbolTool = result.tools.find((t: any) => t.name === 'symbol_context');
       expect(symbolTool.inputSchema.properties.symbol).toBeDefined();
+      expect(symbolTool.inputSchema.properties.symbols).toBeDefined();
+      expect(symbolTool.inputSchema.properties.brief).toBeDefined();
       expect(symbolTool.inputSchema.properties.directory).toBeDefined();
-      expect(symbolTool.inputSchema.required).toContain('symbol');
+      expect(symbolTool.inputSchema.required).toEqual([]);
+    });
+
+    it('should have readOnlyHint annotation on all tools', async () => {
+      const result = await sendRequest('tools/list', {});
+
+      for (const tool of result.tools) {
+        expect(tool.annotations).toBeDefined();
+        expect(tool.annotations.readOnlyHint).toBe(true);
+      }
     });
   });
 
   describe('tools/call validation', () => {
-    it('should return NO_CACHE error for overview when no cache and API disabled', async () => {
-      // Server runs with --no-api-fallback, so overview with no pre-computed
-      // cache returns a fast, deterministic NO_CACHE error (no API call).
-      const result = await sendRequest('tools/call', {
-        name: 'overview',
-        arguments: {}
-      });
-
-      expect(result.content).toBeDefined();
-      expect(result.content[0].type).toBe('text');
-      const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.error).toBeDefined();
-      expect(parsed.error.code).toBe('NO_CACHE');
-    });
-
     it('should return validation error for missing symbol on symbol_context', async () => {
       const result = await sendRequest('tools/call', {
         name: 'symbol_context',
         arguments: { directory: '/tmp' }
+      });
+
+      expect(result.content).toBeDefined();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.error.code).toBe('MISSING_SYMBOL');
+    });
+
+    it('should return validation error for empty symbols array on symbol_context', async () => {
+      const result = await sendRequest('tools/call', {
+        name: 'symbol_context',
+        arguments: { symbols: [], directory: '/tmp' }
       });
 
       expect(result.content).toBeDefined();

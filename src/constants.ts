@@ -25,3 +25,8 @@ export const MAX_SYMBOL_CALLERS = 10; // Top N callers to show
 export const MAX_SYMBOL_CALLEES = 10; // Top N callees to show
 export const MAX_SYMBOL_RELATED = 8; // Related symbols in same file
 export const MAX_SOURCE_LINES = 50; // Max lines of source code to include inline
+
+// Batch symbol_context limits
+export const MAX_BATCH_SYMBOLS = 10; // Max symbols per batch call
+export const MAX_BRIEF_CALLERS = 5; // Callers shown in brief mode
+export const MAX_BRIEF_CALLEES = 5; // Callees shown in brief mode

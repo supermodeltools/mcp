@@ -1,7 +1,7 @@
 /**
  * MCP Server implementation for the Supermodel codebase analysis tools.
  * Redesigned for maximum SWE-bench performance:
- *  - 2 tools (overview, symbol_context) instead of 10
+ *  - 1 tool (symbol_context) with batch support; overview injected into instructions
  *  - Pre-computed graph support for sub-second response times
  *  - On-demand API fallback when no cache exists
  * @module server
@@ -9,7 +9,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
-import overviewTool from './tools/overview';
+import { renderOverview } from './tools/overview';
 import symbolContextTool from './tools/symbol-context';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -62,23 +62,26 @@ export class Server {
         capabilities: { tools: {}, logging: {} },
         instructions: `# Supermodel: Codebase Intelligence
 
-Two tools for instant codebase understanding. Pre-computed graphs enable sub-second responses.
+One read-only tool for instant codebase understanding. Pre-computed graphs enable sub-second responses.
+
+The codebase overview is included below in these instructions — you already have the architecture map.
 
 ## Recommended workflow
-1. \`overview\` first to learn architecture and key symbols (1 call)
-2. \`symbol_context\` on 1-2 symbols from the issue to see source, callers, callees (1-2 calls)
-3. Stop calling MCP tools. Use the results to make your fix.
+1. Identify symbols from the issue/overview and call \`symbol_context\` to explore them. You can issue multiple \`symbol_context\` calls in parallel (the tool is read-only) or batch them into one call via the \`symbols\` array.
+2. Stop calling MCP tools. Use the results to make your fix.
+
+## Parallel execution
+\`symbol_context\` is marked read-only — feel free to call it multiple times in the same turn. For example, issue 3 separate \`symbol_context\` calls simultaneously, or pass all 3 names in one \`symbols\` array. Both approaches run in parallel and return in one turn.
 
 ## Anti-patterns
-- >3 MCP calls total = diminishing returns. Aim for 1 overview + 1-2 symbol lookups.
+- >2 MCP turns total = diminishing returns. Explore everything you need in one turn.
 - Chasing callers-of-callers burns iterations without helping.
 
 ## After fixing
 Run the project's existing test suite (e.g. pytest). Do NOT write standalone test scripts.
 
 ## Tool reference
-- \`overview\`: Architecture map, domains, hub functions, file counts. Zero-arg, sub-second.
-- \`symbol_context\`: Source, callers, callees, domain for any function/class/method. Supports "Class.method" and partial matching.`,
+- \`symbol_context\`: Source, callers, callees, domain for any function/class/method. Supports "Class.method", partial matching, and batch lookups via \`symbols\` array. Use \`brief: true\` for compact output when looking up 3+ symbols. Read-only — safe to call in parallel.`,
       },
     );
 
@@ -105,7 +108,6 @@ Run the project's existing test suite (e.g. pytest). Do NOT write standalone tes
 
   private setupHandlers() {
     const allTools = [
-      overviewTool,
       symbolContextTool,
     ];
 
@@ -136,6 +138,20 @@ Run the project's existing test suite (e.g. pytest). Do NOT write standalone tes
     });
   }
 
+  private injectOverviewInstructions(repoMap: Map<string, import('./cache/graph-cache').IndexedGraph>) {
+    if (repoMap.size === 0) return;
+
+    // Only inject if there's exactly 1 unique graph (SWE-bench always has exactly 1 repo)
+    const uniqueGraphs = new Set([...repoMap.values()]);
+    if (uniqueGraphs.size !== 1) return;
+
+    const graph = [...uniqueGraphs][0];
+    const overview = renderOverview(graph);
+    const current = (this.server.server as any)._instructions as string | undefined;
+    (this.server.server as any)._instructions = (current || '') + '\n\n' + overview;
+    logger.debug('Injected overview into server instructions');
+  }
+
   async start() {
     // Clean up any stale ZIP files from previous sessions
     await cleanupOldZips(ZIP_CLEANUP_AGE_MS);
@@ -148,6 +164,7 @@ Run the project's existing test suite (e.g. pytest). Do NOT write standalone tes
         const repoMap = await loadCacheFromDisk(cacheDir, graphCache);
         setRepoMap(repoMap);
         logger.debug(`Loaded ${repoMap.size} repo mappings`);
+        this.injectOverviewInstructions(repoMap);
       } catch (err: any) {
         logger.warn('Failed to load cache directory:', err.message || err);
       }

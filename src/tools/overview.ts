@@ -42,6 +42,9 @@ export const tool: Tool = {
     },
     required: [],
   },
+  annotations: {
+    readOnlyHint: true,
+  },
 };
 
 export const handler: HandlerFunction = async (client, args, defaultWorkdir) => {
@@ -68,7 +71,7 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
 
 // ── Rendering ──
 
-function renderOverview(graph: IndexedGraph): string {
+export function renderOverview(graph: IndexedGraph): string {
   const s = graph.summary;
   const lines: string[] = [];
 

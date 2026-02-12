@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { buildIndexes } from '../cache/graph-cache';
-import { findSymbol, renderSymbolContext, languageFromExtension } from './symbol-context';
+import { findSymbol, renderSymbolContext, renderBriefSymbolContext, languageFromExtension } from './symbol-context';
 import { MAX_SOURCE_LINES } from '../constants';
 
 // ── Helpers ──
@@ -171,6 +171,65 @@ describe('renderSymbolContext', () => {
     expect(result).toContain('## ghost');
     expect(result).not.toContain('```python');
     expect(result).not.toContain('### Source');
+  });
+});
+
+// ── renderBriefSymbolContext tests ──
+
+describe('renderBriefSymbolContext', () => {
+  it('produces compact output without source code', () => {
+    const graph = buildGraph(
+      [
+        { id: 'fn1', labels: ['Function'], properties: { name: 'process_data', filePath: 'pipeline.py', startLine: 10, endLine: 25, kind: 'function', language: 'python' } },
+        { id: 'c1', labels: ['Function'], properties: { name: 'caller_a', filePath: 'a.py', startLine: 1 } },
+        { id: 'c2', labels: ['Function'], properties: { name: 'caller_b', filePath: 'b.py', startLine: 1 } },
+        { id: 'e1', labels: ['Function'], properties: { name: 'helper', filePath: 'h.py', startLine: 1 } },
+      ],
+      [
+        { id: 'r1', type: 'calls', startNode: 'c1', endNode: 'fn1' },
+        { id: 'r2', type: 'calls', startNode: 'c2', endNode: 'fn1' },
+        { id: 'r3', type: 'calls', startNode: 'fn1', endNode: 'e1' },
+      ],
+    );
+
+    const result = renderBriefSymbolContext(graph, graph.nodeById.get('fn1')!);
+    expect(result).toContain('## process_data');
+    expect(result).toContain('**Defined in:** pipeline.py:10-25');
+    expect(result).toContain('**Type:** function (python)');
+    expect(result).toContain('**Called by:**');
+    expect(result).toContain('`caller_a`');
+    expect(result).toContain('`caller_b`');
+    expect(result).toContain('**Calls:**');
+    expect(result).toContain('`helper`');
+    // Must NOT contain source code
+    expect(result).not.toContain('```');
+    expect(result).not.toContain('### Source');
+  });
+
+  it('truncates callers/callees lists beyond MAX_BRIEF limits', () => {
+    const nodes = [
+      { id: 'fn1', labels: ['Function'], properties: { name: 'target', filePath: 'x.py', startLine: 1 } },
+    ];
+    const rels = [];
+    // Create 7 callers
+    for (let i = 0; i < 7; i++) {
+      nodes.push({ id: `c${i}`, labels: ['Function'], properties: { name: `caller_${i}`, filePath: `c${i}.py`, startLine: 1 } });
+      rels.push({ id: `r${i}`, type: 'calls', startNode: `c${i}`, endNode: 'fn1' });
+    }
+    // Create 7 callees
+    for (let i = 0; i < 7; i++) {
+      nodes.push({ id: `e${i}`, labels: ['Function'], properties: { name: `callee_${i}`, filePath: `e${i}.py`, startLine: 1 } });
+      rels.push({ id: `re${i}`, type: 'calls', startNode: 'fn1', endNode: `e${i}` });
+    }
+
+    const graph = buildGraph(nodes, rels);
+    const result = renderBriefSymbolContext(graph, graph.nodeById.get('fn1')!);
+
+    // Should show "total" count indicators
+    expect(result).toContain('7 total');
+    // Should NOT have more than 5 caller names listed
+    expect(result).not.toContain('`caller_5`');
+    expect(result).not.toContain('`callee_5`');
   });
 });
 
