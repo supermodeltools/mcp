@@ -162,6 +162,15 @@ describe('MCP Server Integration', () => {
       expect(symbolTool.inputSchema.properties.directory).toBeDefined();
       expect(symbolTool.inputSchema.required).toContain('symbol');
     });
+
+    it('should have readOnlyHint annotation on all tools', async () => {
+      const result = await sendRequest('tools/list', {});
+
+      for (const tool of result.tools) {
+        expect(tool.annotations).toBeDefined();
+        expect(tool.annotations.readOnlyHint).toBe(true);
+      }
+    });
   });
 
   describe('tools/call validation', () => {

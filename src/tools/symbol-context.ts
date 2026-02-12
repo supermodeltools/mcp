@@ -55,6 +55,9 @@ export const tool: Tool = {
     },
     required: ['symbol'],
   },
+  annotations: {
+    readOnlyHint: true,
+  },
 };
 
 export const handler: HandlerFunction = async (client, args, defaultWorkdir) => {

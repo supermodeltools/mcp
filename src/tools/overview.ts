@@ -42,6 +42,9 @@ export const tool: Tool = {
     },
     required: [],
   },
+  annotations: {
+    readOnlyHint: true,
+  },
 };
 
 export const handler: HandlerFunction = async (client, args, defaultWorkdir) => {
