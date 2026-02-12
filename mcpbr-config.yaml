@@ -1,6 +1,11 @@
-# Supermodel MCP server configuration for mcpbr
+# Recommended Supermodel MCP server configuration for mcpbr
 #
-# This uses the Supermodel codebase analysis MCP server.
+# Best-practice config: minimal agent_prompt to avoid suppressing parallel
+# tool calls. All workflow guidance lives in the MCP server's instructions
+# field (see src/server.ts), which does not inhibit parallelism.
+#
+# See: https://github.com/supermodeltools/mcp/issues/123
+#
 # Requires SUPERMODEL_API_KEY environment variable.
 
 mcp_server:
@@ -8,14 +13,14 @@ mcp_server:
   command: "npx"
   args:
     - "-y"
-    - "@supermodeltools/mcp-server@0.9.2"
+    - "@supermodeltools/mcp-server@0.9.4"
     - "{workdir}"
     - "--precache"
   env:
     SUPERMODEL_API_KEY: "${SUPERMODEL_API_KEY}"
     SUPERMODEL_BASE_URL: "https://api.supermodeltools.com"
     SUPERMODEL_CACHE_DIR: "/tmp/supermodel-cache"
-  setup_command: "npx -y @supermodeltools/mcp-server@0.9.2 precache {workdir} --output-dir /tmp/supermodel-cache"
+  setup_command: "npx -y @supermodeltools/mcp-server@0.9.4 precache {workdir} --output-dir /tmp/supermodel-cache"
   setup_timeout_ms: 900000
 
 provider: "anthropic"
@@ -32,22 +37,12 @@ max_concurrent: 2
 
 max_iterations: 30
 
+# Minimal agent_prompt: just the problem statement + repo location.
+# Workflow guidance comes from the MCP server instructions field, which
+# preserves the agent's natural parallel tool-calling behavior.
 agent_prompt: |
   {problem_statement}
 
-  ## Workflow (follow this order)
-
-  1. ORIENT: Call `overview` to see the codebase architecture. Identify which domain and files relate to the issue.
-  2. LOCATE: Call `symbol_context` on 1-2 key symbols from the issue (function names, class names, error trace). Read the callers/callees to understand the change surface.
-  3. STOP EXPLORING: Do not call MCP tools more than 3 times total. You now have enough context. Use Read/Grep only for targeted verification.
-  4. FIX: Make the minimal code change that addresses the root cause. Prefer modifying existing logic over adding new code.
-  5. TEST: Run the project's existing test suite to verify your fix. Use the repo's test runner (e.g., `python -m pytest <test_file>`). NEVER write standalone test scripts -- they will fail on missing dependencies. Find the relevant test file from the MCP output or with Grep, then run it.
-  6. REGRESSION CHECK: Run the full related test module to ensure no regressions. If tests fail, read the failure output and iterate on your fix.
-
-  ## Anti-patterns to avoid
-  - Do NOT chase symbol after symbol (>3 MCP calls). Diminishing returns after 2 calls.
-  - Do NOT write test_bug.py or test_fix.py scripts. The workspace lacks pip-installed dependencies. Use the project's own tests.
-  - Do NOT spend iterations on TodoWrite planning. Act directly.
-  - Do NOT create new test files, documentation, or reproduction scripts.
-
-  The repository is located at {workdir}.
+  The repository is at {workdir}. The MCP server instructions contain the
+  codebase overview and workflow guidance. Do not write standalone test scripts;
+  use the project's existing test suite.

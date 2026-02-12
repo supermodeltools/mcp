@@ -23,6 +23,7 @@ OVERNIGHT_SUMMARY.md
 START_HERE.md
 .claude_notes
 mcpbr-*.yaml
+!mcpbr-config.yaml
 *-benchmark*.sh
 *-monitor*.sh
 *-comparison*.sh
