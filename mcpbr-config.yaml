@@ -16,6 +16,7 @@ mcp_server:
     - "@supermodeltools/mcp-server@0.9.4"
     - "{workdir}"
     - "--precache"
+    - "--no-api-fallback"
   env:
     SUPERMODEL_API_KEY: "${SUPERMODEL_API_KEY}"
     SUPERMODEL_BASE_URL: "https://api.supermodeltools.com"
