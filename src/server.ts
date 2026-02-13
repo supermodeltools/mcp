@@ -67,21 +67,23 @@ One read-only tool for instant codebase understanding. Pre-computed graphs enabl
 The codebase overview is included below in these instructions — you already have the architecture map.
 
 ## Recommended workflow
-1. Identify symbols from the issue/overview and call \`symbol_context\` to explore them. You can issue multiple \`symbol_context\` calls in parallel (the tool is read-only) or batch them into one call via the \`symbols\` array.
-2. Stop calling MCP tools. Use the results to make your fix.
+1. Identify symbols from the issue/overview and call \`symbol_context\` to explore them.
+   Batch via \`symbols\` array or issue multiple calls in parallel (read-only, safe).
+2. Stop calling MCP tools. Start editing by turn 3. Max 3 MCP calls total.
 
-## Parallel execution
-\`symbol_context\` is marked read-only — feel free to call it multiple times in the same turn. For example, issue 3 separate \`symbol_context\` calls simultaneously, or pass all 3 names in one \`symbols\` array. Both approaches run in parallel and return in one turn.
-
-## Anti-patterns
-- >2 MCP turns total = diminishing returns. Explore everything you need in one turn.
-- Chasing callers-of-callers burns iterations without helping.
+## Rules
+- Do NOT use TodoWrite. Act directly.
+- Use the Task tool to delegate subtasks (e.g. running tests, exploring tangential code).
+- >2 MCP turns = diminishing returns. Explore everything you need in one turn.
 
 ## After fixing
-Run the project's existing test suite (e.g. pytest). Do NOT write standalone test scripts.
+Run the full related test suite to catch regressions. Do NOT write standalone test scripts.
 
 ## Tool reference
-- \`symbol_context\`: Source, callers, callees, domain for any function/class/method. Supports "Class.method", partial matching, and batch lookups via \`symbols\` array. Use \`brief: true\` for compact output when looking up 3+ symbols. Read-only — safe to call in parallel.`,
+- \`symbol_context\`: Source, callers, callees, domain for any function/class/method.
+  Supports "Class.method", partial matching, and batch lookups via \`symbols\` array.
+  Use \`brief: true\` for compact output when looking up 3+ symbols.
+  Read-only — safe to call in parallel.`,
       },
     );
 
@@ -138,6 +140,19 @@ Run the project's existing test suite (e.g. pytest). Do NOT write standalone tes
     });
   }
 
+  private getTestHint(primaryLanguage: string): string {
+    switch (primaryLanguage.toLowerCase()) {
+      case 'python': return '\n\n**Test with:** `python -m pytest <test_file> -x`';
+      case 'javascript':
+      case 'typescript': return '\n\n**Test with:** `npm test`';
+      case 'go': return '\n\n**Test with:** `go test ./...`';
+      case 'rust': return '\n\n**Test with:** `cargo test`';
+      case 'java': return '\n\n**Test with:** `mvn test` or `gradle test`';
+      case 'ruby': return '\n\n**Test with:** `bundle exec rake test`';
+      default: return '';
+    }
+  }
+
   private injectOverviewInstructions(repoMap: Map<string, import('./cache/graph-cache').IndexedGraph>) {
     if (repoMap.size === 0) return;
 
@@ -146,10 +161,15 @@ Run the project's existing test suite (e.g. pytest). Do NOT write standalone tes
     if (uniqueGraphs.size !== 1) return;
 
     const graph = [...uniqueGraphs][0];
-    const overview = renderOverview(graph);
-    const current = (this.server.server as any)._instructions as string | undefined;
-    (this.server.server as any)._instructions = (current || '') + '\n\n' + overview;
-    logger.debug('Injected overview into server instructions');
+    try {
+      const overview = renderOverview(graph);
+      const testHint = this.getTestHint(graph.summary.primaryLanguage);
+      const current = (this.server.server as any)._instructions as string | undefined;
+      (this.server.server as any)._instructions = (current || '') + '\n\n' + overview + testHint;
+      logger.debug('Injected overview into server instructions');
+    } catch (err: any) {
+      logger.warn('Failed to render overview for instructions:', err.message || err);
+    }
   }
 
   async start() {

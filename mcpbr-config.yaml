@@ -45,4 +45,4 @@ agent_prompt: |
 
   The repository is at {workdir}. The MCP server instructions contain the
   codebase overview and workflow guidance. Do not write standalone test scripts;
-  use the project's existing test suite.
+  use the project's existing test suite. Do not use TodoWrite.
