@@ -132,6 +132,26 @@ describe('MCP Server Integration', () => {
       expect(result.instructions).toBeDefined();
       expect(result.instructions).toContain('Supermodel: Codebase Intelligence');
     });
+
+    it('should prohibit TodoWrite in instructions', async () => {
+      const result = await sendRequest('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'jest-test', version: '1.0.0' }
+      });
+
+      expect(result.instructions).toContain('Do NOT use TodoWrite');
+    });
+
+    it('should mention Task tool in instructions', async () => {
+      const result = await sendRequest('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'jest-test', version: '1.0.0' }
+      });
+
+      expect(result.instructions).toContain('Task tool');
+    });
   });
 
   describe('tools/list', () => {
