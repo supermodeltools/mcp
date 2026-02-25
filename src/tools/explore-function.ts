@@ -244,9 +244,9 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
     lines.push(`### Source`);
     lines.push('```' + ext);
     if (startLine) {
-      displayLines.forEach((l, i) => lines.push(`${startLine + i}: ${l}`));
+      displayLines.forEach((l, i) => { lines.push(`${startLine + i}: ${l}`); });
     } else {
-      displayLines.forEach(l => lines.push(l));
+      displayLines.forEach(l => { lines.push(l); });
     }
     if (truncated) lines.push(`... (${sourceLines.length - MAX_SOURCE_LINES} more lines)`);
     lines.push('```');

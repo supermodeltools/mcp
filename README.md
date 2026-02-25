@@ -162,7 +162,7 @@ Deep dive on a specific function, class, or method. Given a symbol name, instant
 
 ### GraphRAG Mode (Experimental)
 
-Activate with `SUPERMODEL_EXPERIMENT=graphrag`. Replaces `symbol_context` with two graph-oriented tools for call-graph traversal and cross-subsystem analysis.
+Activate with `SUPERMODEL_EXPERIMENT=graphrag`. Replaces `symbol_context` with a graph-oriented tool for call-graph traversal and cross-subsystem analysis.
 
 #### `explore_function`
 
@@ -178,20 +178,6 @@ BFS traversal of a function, class, or method call graph. Shows source code, cal
 | `directory` | string | No | Repository path. |
 
 **Output:** Readable narrative showing upstream/downstream neighbors with domain context at each hop.
-
-#### `find_connections`
-
-Find how two subsystems or domains connect via function call relationships.
-
-**Parameters:**
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `domain_a` | string | Yes | First domain or subdomain name. Fuzzy matching supported. |
-| `domain_b` | string | Yes | Second domain or subdomain name. Fuzzy matching supported. |
-| `directory` | string | No | Repository path. |
-
-**Output:** List of bridge functions with file locations showing calls in both directions between the two domains.
 
 ### Recommended Workflow
 
