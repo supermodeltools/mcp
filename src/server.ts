@@ -18,7 +18,6 @@ import {
   annotateEndpoint,
 } from './tools/tool-variants';
 import exploreFunctionEndpoint from './tools/explore-function';
-import findConnectionsEndpoint from './tools/find-connections';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';

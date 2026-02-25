@@ -15,11 +15,10 @@ import {
   normalizePath,
 } from '../cache/graph-cache';
 import { CodeGraphNode } from '../cache/graph-types';
-import { findSymbol, renderBriefSymbolContext, renderSymbolContext } from './symbol-context';
+import { findSymbol, renderBriefSymbolContext } from './symbol-context';
 import {
   MAX_SYMBOL_CALLERS,
   MAX_SYMBOL_CALLEES,
-  MAX_BATCH_SYMBOLS,
 } from '../constants';
 
 // ─── Variant D: "search_symbol" ────────────────────────────────────

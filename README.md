@@ -166,13 +166,13 @@ Activate with `SUPERMODEL_EXPERIMENT=graphrag`. Replaces `symbol_context` with t
 
 #### `explore_function`
 
-BFS traversal of a function's call graph. Shows callers, callees, and cross-subsystem boundaries with `← DIFFERENT SUBSYSTEM` markers.
+BFS traversal of a function, class, or method call graph. Shows source code, callers, callees, and cross-subsystem boundaries with `← DIFFERENT SUBSYSTEM` markers.
 
 **Parameters:**
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `symbol` | string | Yes | Function name to explore. Supports partial matching and `ClassName.method` syntax. |
+| `symbol` | string | Yes | Function, class, or method name to explore. Supports partial matching and `ClassName.method` syntax. |
 | `direction` | string | No | `downstream` (callees), `upstream` (callers), or `both` (default). |
 | `depth` | number | No | Hops to follow: 1–3 (default: 2). |
 | `directory` | string | No | Repository path. |
@@ -201,10 +201,8 @@ Find how two subsystems or domains connect via function call relationships.
 3. Start editing by turn 3. Max 3 MCP calls total.
 
 **GraphRAG mode:**
-1. Identify key symbols from the issue, call `explore_function` to understand their call-graph context
-2. Use the cross-subsystem markers to find architectural boundaries
-3. Use `find_connections` to understand how domains relate
-4. Start editing by turn 3. Max 3 MCP calls total.
+1. Identify key symbols from the issue, call `explore_function` to understand their call-graph context. Issue multiple calls in parallel (read-only, safe).
+2. Use the cross-subsystem markers and source code from the response to start editing. Max 2 MCP calls total.
 
 ## Pre-computed Graphs
 
