@@ -515,4 +515,20 @@ function findDomain(graph: IndexedGraph, nodeId: string): string | null {
   return null;
 }
 
+export const minimalTool: Tool = {
+  name: 'symbol_context',
+  description: 'Look up a function or class by name.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      symbol: { type: 'string', description: 'Symbol name.' },
+      directory: { type: 'string', description: 'Repo path.' },
+    },
+    required: [],
+  },
+  annotations: {
+    readOnlyHint: true,
+  },
+};
+
 export default { tool, handler } as Endpoint;

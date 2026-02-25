@@ -4,7 +4,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-blue)](https://modelcontextprotocol.io)
 [![CI](https://github.com/supermodeltools/mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/supermodeltools/mcp/actions/workflows/ci.yml)
 
-MCP server that gives AI agents instant codebase understanding via the [Supermodel API](https://docs.supermodeltools.com). Two tools — `overview` and `symbol_context` — backed by pre-computed code graphs for sub-second responses.
+MCP server that gives AI agents instant codebase understanding via the [Supermodel API](https://docs.supermodeltools.com). Pre-computed code graphs enable sub-second responses for symbol lookups, call-graph traversal, and cross-subsystem analysis.
 
 ## Install
 
@@ -59,6 +59,7 @@ Get your API key from the [Supermodel Dashboard](https://dashboard.supermodeltoo
 | `SUPERMODEL_CACHE_DIR` | Directory for pre-computed graph cache files (optional) |
 | `SUPERMODEL_TIMEOUT_MS` | API request timeout in ms (default: 900000 / 15 min) |
 | `SUPERMODEL_NO_API_FALLBACK` | Set to disable on-demand API calls; cache-only mode (optional) |
+| `SUPERMODEL_EXPERIMENT` | Experiment mode. Set to `graphrag` to enable GraphRAG tools (optional) |
 
 ### Global Setup (Recommended)
 
@@ -132,32 +133,12 @@ Tools will use this directory automatically if no explicit `directory` parameter
 
 ## Tools
 
-### `overview`
+### `symbol_context` (Default Mode)
 
-Returns a pre-computed architectural map of the codebase in sub-second time. Call this first on any new task.
-
-**Output includes:**
-- Top architectural domains and their key files
-- Most-called hub functions (call graph centrality)
-- File, function, and class counts
-- Primary language and graph statistics
-
-**Parameters:**
-
-| Argument | Type | Required | Description |
-|----------|------|----------|-------------|
-| `directory` | string | No | Path to repository directory. Omit if server was started with a default workdir. |
-
-**Example prompts:**
-- "Give me an overview of this codebase"
-- "What's the architecture of this project?"
-
-### `symbol_context`
-
-Deep dive on a specific function, class, or method. Given a symbol name, instantly returns its definition location, all callers, all callees, domain membership, and related symbols in the same file.
+Deep dive on a specific function, class, or method. Given a symbol name, instantly returns its definition location, source code, all callers, all callees, domain membership, and related symbols in the same file.
 
 **Output includes:**
-- Definition location (file, line range)
+- Definition location (file, line range) and source code
 - Callers (who calls this symbol)
 - Callees (what this symbol calls)
 - Architectural domain membership
@@ -168,20 +149,46 @@ Deep dive on a specific function, class, or method. Given a symbol name, instant
 
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `symbol` | string | Yes | Name of the function, class, or method. Supports `ClassName.method` syntax and partial matching. |
+| `symbol` | string | No* | Name of the function, class, or method. Supports `ClassName.method` syntax and partial matching. |
+| `symbols` | string[] | No* | Array of symbol names for batch lookup. More efficient than multiple calls. |
 | `directory` | string | No | Path to repository directory. Omit if server was started with a default workdir. |
+| `brief` | boolean | No | Return compact output (no source code). Recommended for 3+ symbols. |
+
+\* Either `symbol` or `symbols` must be provided.
 
 **Example prompts:**
 - "Look up the symbol `filter_queryset` in this codebase"
 - "What calls `QuerySet.filter` and what does it call?"
 
+### GraphRAG Mode (Experimental)
+
+Activate with `SUPERMODEL_EXPERIMENT=graphrag`. Replaces `symbol_context` with a graph-oriented tool for call-graph traversal and cross-subsystem analysis.
+
+#### `explore_function`
+
+BFS traversal of a function, class, or method call graph. Shows source code, callers, callees, and cross-subsystem boundaries with `← DIFFERENT SUBSYSTEM` markers.
+
+**Parameters:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `symbol` | string | Yes | Function, class, or method name to explore. Supports partial matching and `ClassName.method` syntax. |
+| `direction` | string | No | `downstream` (callees), `upstream` (callers), or `both` (default). |
+| `depth` | number | No | Hops to follow: 1–3 (default: 2). |
+| `directory` | string | No | Repository path. |
+
+**Output:** Readable narrative showing upstream/downstream neighbors with domain context at each hop.
+
 ### Recommended Workflow
 
-1. Call `overview` to understand the codebase architecture
-2. Read the issue/bug description and identify relevant domains and symbols
-3. Call `symbol_context` on key symbols to understand their structural context
-4. Use Read/Grep to examine the actual source code at the identified locations
-5. Make your fix and verify with tests
+**Default mode:**
+1. Identify symbols from the issue and call `symbol_context` to explore them (batch via `symbols` array or parallel calls)
+2. Use Read/Grep to examine source code at identified locations
+3. Start editing by turn 3. Max 3 MCP calls total.
+
+**GraphRAG mode:**
+1. Identify key symbols from the issue, call `explore_function` to understand their call-graph context. Issue multiple calls in parallel (read-only, safe).
+2. Use the cross-subsystem markers and source code from the response to start editing. Max 2 MCP calls total.
 
 ## Pre-computed Graphs
 

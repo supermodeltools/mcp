@@ -12,11 +12,16 @@ import * as path from 'path';
 const SERVER_STARTUP_TIMEOUT_MS = 5000;
 const STARTUP_POLL_INTERVAL_MS = 100;
 
-describe('MCP Server Integration', () => {
+/**
+ * Create a server test fixture with shared infrastructure.
+ * Avoids duplicating sendRequest/beforeAll/afterAll across describe blocks.
+ */
+function createServerFixture(extraEnv: Record<string, string> = {}) {
   let server: ChildProcess;
   let requestId = 0;
   let responseQueue: Map<number, { resolve: (value: any) => void; reject: (err: Error) => void }> = new Map();
   let rl: readline.Interface;
+  let startupError: Error | null = null;
 
   function sendRequest(method: string, params: Record<string, unknown> = {}): Promise<any> {
     return new Promise((resolve, reject) => {
@@ -39,74 +44,91 @@ describe('MCP Server Integration', () => {
     });
   }
 
-  beforeAll(async () => {
-    const distPath = path.join(__dirname, '..', 'dist', 'index.js');
-    if (!existsSync(distPath)) {
-      throw new Error(
-        `Server build not found at ${distPath}. Run 'npm run build' first.`
-      );
-    }
+  function setup() {
+    beforeAll(async () => {
+      const distPath = path.join(__dirname, '..', 'dist', 'index.js');
+      if (!existsSync(distPath)) {
+        throw new Error(
+          `Server build not found at ${distPath}. Run 'npm run build' first.`
+        );
+      }
 
-    server = spawn('node', [distPath, '--no-api-fallback'], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env }
-    });
+      server = spawn('node', [distPath, '--no-api-fallback'], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: { ...process.env, ...extraEnv }
+      });
 
-    server.on('error', (err) => {
-      throw new Error(`Failed to start MCP server: ${err.message}`);
-    });
+      server.on('error', (err) => {
+        startupError = new Error(`Failed to start MCP server: ${err.message}`);
+      });
 
-    rl = readline.createInterface({
-      input: server.stdout!,
-      crlfDelay: Infinity
-    });
+      rl = readline.createInterface({
+        input: server.stdout!,
+        crlfDelay: Infinity
+      });
 
-    rl.on('line', (line) => {
-      try {
-        const response = JSON.parse(line);
-        if (response.id && responseQueue.has(response.id)) {
-          const { resolve, reject } = responseQueue.get(response.id)!;
-          responseQueue.delete(response.id);
-          if (response.error) {
-            reject(new Error(JSON.stringify(response.error)));
-          } else {
-            resolve(response.result);
+      rl.on('line', (line) => {
+        try {
+          const response = JSON.parse(line);
+          if (response.id && responseQueue.has(response.id)) {
+            const { resolve, reject } = responseQueue.get(response.id)!;
+            responseQueue.delete(response.id);
+            if (response.error) {
+              reject(new Error(JSON.stringify(response.error)));
+            } else {
+              resolve(response.result);
+            }
           }
+        } catch {
+          // Not JSON, ignore
         }
-      } catch {
-        // Not JSON, ignore
+      });
+
+      let ready = false;
+      const startTime = Date.now();
+      while (Date.now() - startTime < SERVER_STARTUP_TIMEOUT_MS) {
+        if (startupError) throw startupError;
+        if (server.exitCode !== null) {
+          throw new Error(`Server exited unexpectedly with code ${server.exitCode}`);
+        }
+        await new Promise(r => setTimeout(r, STARTUP_POLL_INTERVAL_MS));
+        if (server.stdin?.writable) {
+          ready = true;
+          break;
+        }
       }
+
+      if (!ready) {
+        throw new Error(`Server not ready after ${SERVER_STARTUP_TIMEOUT_MS}ms`);
+      }
+
+      // Initialize the server so all tests have a consistent state
+      await sendRequest('initialize', {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'jest-test', version: '1.0.0' }
+      });
     });
 
-    let ready = false;
-    const startTime = Date.now();
-    while (Date.now() - startTime < SERVER_STARTUP_TIMEOUT_MS) {
-      if (server.exitCode !== null) {
-        throw new Error(`Server exited unexpectedly with code ${server.exitCode}`);
+    afterAll(async () => {
+      responseQueue.clear();
+      rl?.close();
+      if (server && !server.killed) {
+        server.stdin?.end();
+        server.stdout?.destroy();
+        server.stderr?.destroy();
+        server.kill('SIGKILL');
       }
-      await new Promise(r => setTimeout(r, STARTUP_POLL_INTERVAL_MS));
-      if (server.stdin?.writable) {
-        ready = true;
-        break;
-      }
-    }
+      await new Promise(r => setTimeout(r, 100));
+    });
+  }
 
-    if (!ready) {
-      throw new Error(`Server not ready after ${SERVER_STARTUP_TIMEOUT_MS}ms`);
-    }
-  });
+  return { sendRequest, setup };
+}
 
-  afterAll(async () => {
-    responseQueue.clear();
-    rl?.close();
-    if (server && !server.killed) {
-      server.stdin?.end();
-      server.stdout?.destroy();
-      server.stderr?.destroy();
-      server.kill('SIGKILL');
-    }
-    await new Promise(r => setTimeout(r, 100));
-  });
+describe('MCP Server Integration', () => {
+  const { sendRequest, setup } = createServerFixture();
+  setup();
 
   describe('protocol initialization', () => {
     it('should initialize successfully', async () => {
@@ -212,6 +234,49 @@ describe('MCP Server Integration', () => {
       expect(result.content).toBeDefined();
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.error.code).toBe('MISSING_SYMBOL');
+    });
+  });
+});
+
+describe('MCP Server Integration — GraphRAG Mode', () => {
+  const { sendRequest, setup } = createServerFixture({ SUPERMODEL_EXPERIMENT: 'graphrag' });
+  setup();
+
+  describe('tools/list', () => {
+    it('should list exactly 1 tool', async () => {
+      const result = await sendRequest('tools/list', {});
+      expect(result.tools).toBeDefined();
+      expect(Array.isArray(result.tools)).toBe(true);
+      expect(result.tools.length).toBe(1);
+    });
+
+    it('should include explore_function', async () => {
+      const result = await sendRequest('tools/list', {});
+      const toolNames = result.tools.map((t: any) => t.name);
+
+      expect(toolNames).toContain('explore_function');
+    });
+
+    it('should have readOnlyHint on all tools', async () => {
+      const result = await sendRequest('tools/list', {});
+
+      for (const tool of result.tools) {
+        expect(tool.annotations).toBeDefined();
+        expect(tool.annotations.readOnlyHint).toBe(true);
+      }
+    });
+
+    it('should have correct schema for explore_function', async () => {
+      const result = await sendRequest('tools/list', {});
+      const ef = result.tools.find((t: any) => t.name === 'explore_function');
+
+      expect(ef.inputSchema.properties.symbol).toBeDefined();
+      expect(ef.inputSchema.properties.direction).toBeDefined();
+      expect(ef.inputSchema.properties.direction.enum).toEqual(['downstream', 'upstream', 'both']);
+      expect(ef.inputSchema.properties.depth).toBeDefined();
+      expect(ef.inputSchema.properties.depth.minimum).toBe(1);
+      expect(ef.inputSchema.properties.depth.maximum).toBe(3);
+      expect(ef.inputSchema.required).toEqual(['symbol']);
     });
   });
 });
