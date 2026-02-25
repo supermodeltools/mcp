@@ -10,7 +10,15 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { Configuration, DefaultApi, SupermodelClient } from '@supermodeltools/sdk';
 import { renderOverview } from './tools/overview';
-import symbolContextTool from './tools/symbol-context';
+import symbolContextTool, { minimalTool as symbolContextMinimalTool } from './tools/symbol-context';
+import {
+  searchSymbolEndpoint,
+  findDefinitionEndpoint,
+  traceCallsEndpoint,
+  annotateEndpoint,
+} from './tools/tool-variants';
+import exploreFunctionEndpoint from './tools/explore-function';
+import findConnectionsEndpoint from './tools/find-connections';
 import { ClientContext } from './types';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { cleanupOldZips } from './utils/zip-repository';
@@ -52,15 +60,36 @@ export class Server {
   constructor(defaultWorkdir?: string, options?: ServerOptions) {
     this.defaultWorkdir = defaultWorkdir;
     this.options = options;
+
+    const experiment = process.env.SUPERMODEL_EXPERIMENT;
+
     // Note: noApiFallback is deferred to start() so startup precaching can use the API
-    this.server = new McpServer(
-      {
-        name: 'supermodel_api',
-        version: '0.0.1',
-      },
-      {
-        capabilities: { tools: {}, logging: {} },
-        instructions: `# Supermodel: Codebase Intelligence
+    const experimentInstructions: Record<string, string> = {
+      'minimal-instructions': 'Codebase analysis tool. Call symbol_context to look up functions/classes.',
+      'search-symbol': 'Codebase search tool. Use `search_symbol` alongside Grep and Read for parallel exploration.',
+      'split-tools': 'Codebase tools: `find_definition` locates symbols, `trace_calls` shows caller/callee graphs. Call them alongside Read, Grep, and Glob.',
+      'annotate': 'Codebase annotation tool. Fire `annotate` alongside your Read and Grep calls to enrich results with structural metadata.',
+      'graphrag': `# Supermodel: Codebase Intelligence
+
+Two tools for understanding codebase architecture and call relationships.
+
+## Tools
+- \`explore_function\`: BFS traversal of a function's call graph. Shows callers, callees, and cross-subsystem boundaries. Use this to trace impact, find dependencies, or identify callers.
+- \`find_connections\`: Find how two domains/subsystems connect via function calls.
+
+## Workflow
+1. Identify key symbols from the issue, call \`explore_function\` to understand their call-graph context.
+2. Use the cross-subsystem markers (← DIFFERENT SUBSYSTEM) to find architectural boundaries.
+3. Start editing by turn 3. Max 3 MCP calls total.
+
+## Rules
+- Do NOT use TodoWrite. Act directly.
+- Use the Task tool to delegate subtasks.`,
+    };
+
+    const instructions = experiment && experimentInstructions[experiment]
+      ? experimentInstructions[experiment]
+      : `# Supermodel: Codebase Intelligence
 
 One read-only tool for instant codebase understanding. Pre-computed graphs enable sub-second responses.
 
@@ -83,7 +112,16 @@ Run the full related test suite to catch regressions. Do NOT write standalone te
 - \`symbol_context\`: Source, callers, callees, domain for any function/class/method.
   Supports "Class.method", partial matching, and batch lookups via \`symbols\` array.
   Use \`brief: true\` for compact output when looking up 3+ symbols.
-  Read-only — safe to call in parallel.`,
+  Read-only — safe to call in parallel.`;
+
+    this.server = new McpServer(
+      {
+        name: 'supermodel_api',
+        version: '0.0.1',
+      },
+      {
+        capabilities: { tools: {}, logging: {} },
+        instructions,
       },
     );
 
@@ -109,9 +147,30 @@ Run the full related test suite to catch regressions. Do NOT write standalone te
   }
 
   private setupHandlers() {
-    const allTools = [
-      symbolContextTool,
-    ];
+    const experiment = process.env.SUPERMODEL_EXPERIMENT;
+
+    // Experiment variants: swap tool definitions to test parallel calling behavior
+    let allTools: typeof symbolContextTool[];
+    switch (experiment) {
+      case 'minimal-schema':
+        allTools = [{ tool: symbolContextMinimalTool, handler: symbolContextTool.handler }];
+        break;
+      case 'search-symbol':
+        allTools = [searchSymbolEndpoint];
+        break;
+      case 'split-tools':
+        allTools = [findDefinitionEndpoint, traceCallsEndpoint];
+        break;
+      case 'annotate':
+        allTools = [annotateEndpoint];
+        break;
+      case 'graphrag':
+        allTools = [exploreFunctionEndpoint, findConnectionsEndpoint];
+        break;
+      default:
+        allTools = [symbolContextTool];
+        break;
+    }
 
     // Create a map for quick handler lookup
     const toolMap = new Map<string, typeof allTools[0]>();
@@ -155,6 +214,9 @@ Run the full related test suite to catch regressions. Do NOT write standalone te
 
   private injectOverviewInstructions(repoMap: Map<string, import('./cache/graph-cache').IndexedGraph>) {
     if (repoMap.size === 0) return;
+
+    // Skip overview injection during experiments to isolate variables (except graphrag)
+    if (process.env.SUPERMODEL_EXPERIMENT && process.env.SUPERMODEL_EXPERIMENT !== 'graphrag') return;
 
     // Only inject if there's exactly 1 unique graph (SWE-bench always has exactly 1 repo)
     const uniqueGraphs = new Set([...repoMap.values()]);

@@ -29,3 +29,13 @@ mcpbr-*.yaml
 *-comparison*.sh
 setup-*.sh
 reconnect.sh
+
+# GraphRAG development artifacts
+.mcpbr_run_*/
+eval-*.json
+eval-*-report.md
+parallel_trial_results.json
+*.tgz
+src/dummy-server.ts
+notes/
+mcpbr-progress.sh
