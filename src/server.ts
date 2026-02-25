@@ -71,20 +71,19 @@ export class Server {
       'annotate': 'Codebase annotation tool. Fire `annotate` alongside your Read and Grep calls to enrich results with structural metadata.',
       'graphrag': `# Supermodel: Codebase Intelligence
 
-Two tools for understanding codebase architecture and call relationships.
+One read-only tool for instant call-graph exploration.
 
-## Tools
-- \`explore_function\`: BFS traversal of a function's call graph. Shows callers, callees, and cross-subsystem boundaries. Use this to trace impact, find dependencies, or identify callers.
-- \`find_connections\`: Find how two domains/subsystems connect via function calls.
+## Tool
+- \`explore_function\`: BFS traversal of a function/class call graph. Returns source code, callers, callees, and cross-subsystem boundaries with ← DIFFERENT SUBSYSTEM markers. Supports partial matching and "ClassName.method" syntax.
 
 ## Workflow
-1. Identify key symbols from the issue, call \`explore_function\` to understand their call-graph context.
-2. Use the cross-subsystem markers (← DIFFERENT SUBSYSTEM) to find architectural boundaries.
-3. Start editing by turn 3. Max 3 MCP calls total.
+1. Identify key symbols from the issue, call \`explore_function\` to understand their call-graph context. Issue multiple calls in parallel (read-only, safe).
+2. Use file paths and source code from the response to start editing. Max 2 MCP calls total.
 
 ## Rules
 - Do NOT use TodoWrite. Act directly.
-- Use the Task tool to delegate subtasks.`,
+- NEVER create standalone test scripts. Run the repo's existing test suite to verify.
+- >2 MCP turns = diminishing returns. Get everything you need in one turn.`,
     };
 
     const instructions = experiment && experimentInstructions[experiment]
@@ -165,7 +164,7 @@ Run the full related test suite to catch regressions. Do NOT write standalone te
         allTools = [annotateEndpoint];
         break;
       case 'graphrag':
-        allTools = [exploreFunctionEndpoint, findConnectionsEndpoint];
+        allTools = [exploreFunctionEndpoint];
         break;
       default:
         allTools = [symbolContextTool];

@@ -24,11 +24,12 @@ import {
 import { CodeGraphNode } from '../cache/graph-types';
 import { classifyApiError } from '../utils/api-helpers';
 import { findSymbol } from './symbol-context';
+import { MAX_SOURCE_LINES } from '../constants';
 
 export const tool: Tool = {
   name: 'explore_function',
   description:
-    "Explore a function's call-graph neighborhood. Returns a readable narrative showing what it calls (downstream), what calls it (upstream), with subsystem/domain annotations and ← DIFFERENT SUBSYSTEM markers for cross-boundary calls. Accepts a symbol name (partial matching supported).",
+    "Explore a function or class call-graph neighborhood. Returns source code, callers (upstream), callees (downstream), with subsystem/domain annotations and ← DIFFERENT SUBSYSTEM markers for cross-boundary calls. Accepts partial matching and ClassName.method syntax.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -153,8 +154,8 @@ function describeNode(
   else if (domain) loc = `${domain} domain`;
 
   let line = `\`${name}\``;
-  if (loc) line += ` — ${loc}`;
   if (filePath) line += ` — ${filePath}`;
+  if (loc) line += ` — ${loc}`;
 
   // Flag cross-subsystem edges
   if (refSubdomain && subdomain && subdomain !== refSubdomain) {
@@ -200,13 +201,13 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
     return asErrorResult(classifyApiError(error));
   }
 
-  // Resolve symbol name to a Function node
+  // Resolve symbol name to a Function or Class node
   const matches = findSymbol(graph, symbolArg);
-  const funcMatch = matches.find(n => n.labels?.[0] === 'Function');
+  const funcMatch = matches.find(n => n.labels?.[0] === 'Function' || n.labels?.[0] === 'Class');
   if (!funcMatch) {
     return asErrorResult({
       type: 'not_found_error',
-      message: `No function matching "${symbolArg}" found in the code graph.`,
+      message: `No function or class matching "${symbolArg}" found in the code graph.`,
       code: 'SYMBOL_NOT_FOUND',
       recoverable: false,
       suggestion: 'Try a different function name or use partial matching.',
@@ -222,6 +223,27 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
   lines.push(`## ${describeNode(graph, rootId, null, subdomainToParent)}`);
   lines.push('');
 
+  // Include source code for the root symbol (saves agent a Read round-trip)
+  const rootSource = funcMatch.properties?.sourceCode as string | undefined;
+  if (rootSource) {
+    const sourceLines = rootSource.split('\n');
+    const truncated = sourceLines.length > MAX_SOURCE_LINES;
+    const displayLines = truncated ? sourceLines.slice(0, MAX_SOURCE_LINES) : sourceLines;
+    const startLine = funcMatch.properties?.startLine as number | undefined;
+    const filePath = normalizePath(funcMatch.properties?.filePath as string || '');
+    const ext = filePath.split('.').pop() || '';
+    lines.push(`### Source`);
+    lines.push('```' + ext);
+    if (startLine) {
+      displayLines.forEach((l, i) => lines.push(`${startLine + i}: ${l}`));
+    } else {
+      displayLines.forEach(l => lines.push(l));
+    }
+    if (truncated) lines.push(`... (${sourceLines.length - MAX_SOURCE_LINES} more lines)`);
+    lines.push('```');
+    lines.push('');
+  }
+
   // Downstream BFS (callees)
   if (direction === 'downstream' || direction === 'both') {
     lines.push('### Functions it calls:');
@@ -233,7 +255,7 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
 
       if (d === 1) {
         const callees = (graph.callAdj.get(rootId)?.out || [])
-          .filter(id => graph.nodeById.get(id)?.labels?.[0] === 'Function');
+          .filter(id => { const l = graph.nodeById.get(id)?.labels?.[0]; return l === 'Function' || l === 'Class'; });
 
         if (callees.length === 0) {
           lines.push('  (none)');
@@ -249,7 +271,7 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
           const parentNode = graph.nodeById.get(parentId);
           const parentName = parentNode?.properties?.name as string || '(unknown)';
           const callees = (graph.callAdj.get(parentId)?.out || [])
-            .filter(id => graph.nodeById.get(id)?.labels?.[0] === 'Function')
+            .filter(id => { const l = graph.nodeById.get(id)?.labels?.[0]; return l === 'Function' || l === 'Class'; })
             .filter(id => !visited.has(id));
 
           if (callees.length === 0) continue;
@@ -281,7 +303,7 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
 
       if (d === 1) {
         const callers = (graph.callAdj.get(rootId)?.in || [])
-          .filter(id => graph.nodeById.get(id)?.labels?.[0] === 'Function');
+          .filter(id => { const l = graph.nodeById.get(id)?.labels?.[0]; return l === 'Function' || l === 'Class'; });
 
         if (callers.length === 0) {
           lines.push('  (none)');
@@ -296,7 +318,7 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
           const parentNode = graph.nodeById.get(parentId);
           const parentName = parentNode?.properties?.name as string || '(unknown)';
           const callers = (graph.callAdj.get(parentId)?.in || [])
-            .filter(id => graph.nodeById.get(id)?.labels?.[0] === 'Function')
+            .filter(id => { const l = graph.nodeById.get(id)?.labels?.[0]; return l === 'Function' || l === 'Class'; })
             .filter(id => !visited.has(id));
 
           if (callers.length === 0) continue;

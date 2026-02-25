@@ -313,7 +313,7 @@ describe('MCP Server Integration — GraphRAG Mode', () => {
   });
 
   describe('tools/list', () => {
-    it('should list exactly 2 tools', async () => {
+    it('should list exactly 1 tool', async () => {
       // Initialize first
       await sendRequest('initialize', {
         protocolVersion: '2024-11-05',
@@ -324,15 +324,14 @@ describe('MCP Server Integration — GraphRAG Mode', () => {
       const result = await sendRequest('tools/list', {});
       expect(result.tools).toBeDefined();
       expect(Array.isArray(result.tools)).toBe(true);
-      expect(result.tools.length).toBe(2);
+      expect(result.tools.length).toBe(1);
     });
 
-    it('should include explore_function and find_connections', async () => {
+    it('should include explore_function', async () => {
       const result = await sendRequest('tools/list', {});
       const toolNames = result.tools.map((t: any) => t.name);
 
       expect(toolNames).toContain('explore_function');
-      expect(toolNames).toContain('find_connections');
     });
 
     it('should have readOnlyHint on all tools', async () => {
@@ -355,15 +354,6 @@ describe('MCP Server Integration — GraphRAG Mode', () => {
       expect(ef.inputSchema.properties.depth.minimum).toBe(1);
       expect(ef.inputSchema.properties.depth.maximum).toBe(3);
       expect(ef.inputSchema.required).toEqual(['symbol']);
-    });
-
-    it('should have correct schema for find_connections', async () => {
-      const result = await sendRequest('tools/list', {});
-      const fc = result.tools.find((t: any) => t.name === 'find_connections');
-
-      expect(fc.inputSchema.properties.domain_a).toBeDefined();
-      expect(fc.inputSchema.properties.domain_b).toBeDefined();
-      expect(fc.inputSchema.required).toEqual(['domain_a', 'domain_b']);
     });
   });
 });
