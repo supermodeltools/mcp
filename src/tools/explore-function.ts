@@ -6,7 +6,7 @@
  *  - Every neighbor shows subdomain + domain
  *  - ← DIFFERENT SUBSYSTEM marker for cross-boundary calls
  *  - Hierarchical output with "Via" sections for multi-hop paths
- *  - No source code (agent uses Read for that)
+ *  - Source code included for the root symbol (saves a Read round-trip)
  */
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -180,6 +180,15 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
   }
 
   const direction = (args?.direction as string) || 'both';
+  if (!['downstream', 'upstream', 'both'].includes(direction)) {
+    return asErrorResult({
+      type: 'validation_error',
+      message: `Invalid direction "${direction}". Must be "downstream", "upstream", or "both".`,
+      code: 'INVALID_DIRECTION',
+      recoverable: false,
+      suggestion: 'Use "downstream" (callees), "upstream" (callers), or "both".',
+    });
+  }
   const depth = Math.min(3, Math.max(1, Number(args?.depth) || 2));
   const rawDir = args?.directory as string | undefined;
   const directory = (rawDir && rawDir.trim()) || defaultWorkdir || process.cwd();
@@ -260,10 +269,10 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
         if (callees.length === 0) {
           lines.push('  (none)');
         }
-        for (const cId of callees) {
+        for (const [i, cId] of callees.entries()) {
           visited.add(cId);
           nextFrontier.push(cId);
-          lines.push(`  ${d}. ${describeNode(graph, cId, rootSubName, subdomainToParent)}`);
+          lines.push(`  ${i + 1}. ${describeNode(graph, cId, rootSubName, subdomainToParent)}`);
         }
       } else {
         let anyFound = false;
@@ -283,8 +292,8 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
             lines.push(`    → ${describeNode(graph, cId, rootSubName, subdomainToParent)}`);
           }
         }
-        if (!anyFound && d === 2) {
-          lines.push('  (no further calls at depth 2)');
+        if (!anyFound) {
+          lines.push(`  (no further calls at depth ${d})`);
         }
       }
       frontier = nextFrontier;
@@ -308,12 +317,13 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
         if (callers.length === 0) {
           lines.push('  (none)');
         }
-        for (const cId of callers) {
+        for (const [i, cId] of callers.entries()) {
           visited.add(cId);
           nextFrontier.push(cId);
-          lines.push(`  ${d}. ${describeNode(graph, cId, rootSubName, subdomainToParent)}`);
+          lines.push(`  ${i + 1}. ${describeNode(graph, cId, rootSubName, subdomainToParent)}`);
         }
       } else {
+        let anyFound = false;
         for (const parentId of frontier) {
           const parentNode = graph.nodeById.get(parentId);
           const parentName = parentNode?.properties?.name as string || '(unknown)';
@@ -322,12 +332,16 @@ export const handler: HandlerFunction = async (client, args, defaultWorkdir) => 
             .filter(id => !visited.has(id));
 
           if (callers.length === 0) continue;
+          anyFound = true;
           lines.push(`  Via \`${parentName}\`:`);
           for (const cId of callers) {
             visited.add(cId);
             nextFrontier.push(cId);
             lines.push(`    → ${describeNode(graph, cId, rootSubName, subdomainToParent)}`);
           }
+        }
+        if (!anyFound) {
+          lines.push(`  (no further callers at depth ${d})`);
         }
       }
       frontier = nextFrontier;
