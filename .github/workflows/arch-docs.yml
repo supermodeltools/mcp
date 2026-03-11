@@ -18,7 +18,7 @@ jobs:
         id: docs
         with:
           supermodel-api-key: ${{ secrets.SUPERMODEL_API_KEY }}
-          base-url: https://repos.supermodeltools.com
+          base-url: https://repos.supermodeltools.com/mcp
 
       - name: Deploy to central site
         env:
