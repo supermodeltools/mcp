@@ -1,0 +1,28 @@
+{
+  "name": "supermodeltools/mcp",
+  "description": "Supermodel Model Context Protocol server. Generate code graphs in Cursor, Codex or Claude Code!",
+  "accepts": [
+    {
+      "network": "eip155:8453",
+      "asset": "USDC",
+      "address": "YOUR_WALLET_ADDRESS"
+    }
+  ],
+  "resources": [
+    {
+      "path": "/symbol_context",
+      "price": "0.01",
+      "description": "Pay-per-call access to symbol_context"
+    },
+    {
+      "path": "/explore_function",
+      "price": "0.01",
+      "description": "Pay-per-call access to explore_function"
+    },
+    {
+      "path": "/precache",
+      "price": "0.01",
+      "description": "Pay-per-call access to precache"
+    }
+  ]
+}
