@@ -306,6 +306,12 @@ Set the `DEBUG` environment variable for verbose logging:
 }
 ```
 
+## Blog
+
+- [Why Code Graphs Matter for AI Agents](https://greynewell.com/blog/why-code-graphs-matter/)
+- [The Architecture of Supermodel's Code Graph API](https://greynewell.com/blog/supermodel-code-graph-api-architecture/)
+- [Building Uncompact: Lessons from Production](https://greynewell.com/blog/building-uncompact-lessons-from-production/)
+
 ## Links
 
 - [API Documentation](https://docs.supermodeltools.com)
