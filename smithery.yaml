@@ -1,0 +1,19 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        title: Supermodel API Key
+        description: Your Supermodel API key from dashboard.supermodeltools.com
+    required:
+      - apiKey
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: ["-y", "@supermodeltools/mcp-server"],
+      env: {
+        SUPERMODEL_API_KEY: config.apiKey
+      }
+    })
