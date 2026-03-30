@@ -23,6 +23,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { cleanupOldZips } from './utils/zip-repository';
 import { graphCache, loadCacheFromDisk, setRepoMap, setNoApiFallback, precacheForDirectory } from './cache/graph-cache';
 import { Agent } from 'undici';
+import { z } from 'zod';
 import { DEFAULT_API_TIMEOUT_MS, CONNECTION_TIMEOUT_MS, ZIP_CLEANUP_AGE_MS } from './constants';
 import * as logger from './utils/logger';
 
@@ -118,7 +119,7 @@ Run the full related test suite to catch regressions. Do NOT write standalone te
         version: '0.0.1',
       },
       {
-        capabilities: { tools: {}, logging: {} },
+        capabilities: { tools: {}, logging: {}, prompts: {}, resources: {} },
         instructions,
       },
     );
@@ -142,6 +143,8 @@ Run the full related test suite to catch regressions. Do NOT write standalone te
     };
 
     this.setupHandlers();
+    this.setupPrompts();
+    this.setupResources();
   }
 
   private setupHandlers() {
@@ -195,6 +198,78 @@ Run the full related test suite to catch regressions. Do NOT write standalone te
 
       throw new Error(`Unknown tool: ${name}`);
     });
+  }
+
+  private setupPrompts() {
+    this.server.prompt(
+      'lookup-symbol',
+      'Look up a symbol (function, class, or method) in a codebase — returns source code, callers, callees, and architectural domain',
+      {
+        symbol: z.string().describe('Name of the symbol to look up (e.g. "filter_queryset", "UserModel.save")'),
+        directory: z.string().optional().describe('Path to the repository directory'),
+      },
+      ({ symbol, directory }) => ({
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `Use the symbol_context tool to look up "${symbol}"${directory ? ` in the repository at ${directory}` : ''}. Return the definition location, source code, callers, callees, and architectural domain.`,
+          },
+        }],
+      }),
+    );
+
+    this.server.prompt(
+      'explore-architecture',
+      'Explore the architectural structure of a codebase — surfaces subsystems, entry points, and key components via the codebase overview',
+      {
+        directory: z.string().describe('Path to the repository directory'),
+        focus: z.string().optional().describe('Optional area or subsystem to focus on'),
+      },
+      ({ directory, focus }) => ({
+        messages: [{
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `Explore the architecture of the repository at ${directory}${focus ? `, focusing on ${focus}` : ''}. Use the symbol_context tool to look up key classes and entry points. Summarize the main subsystems, their responsibilities, and how they interact.`,
+          },
+        }],
+      }),
+    );
+  }
+
+  private setupResources() {
+    this.server.resource(
+      'configuration',
+      'supermodel://docs/configuration',
+      {
+        description: 'Supermodel MCP Server configuration reference — environment variables and CLI options',
+        mimeType: 'text/markdown',
+      },
+      async (uri) => ({
+        contents: [{
+          uri: uri.toString(),
+          mimeType: 'text/markdown',
+          text: `# Configuration Reference\n\n## Environment Variables\n\n| Variable | Required | Default | Description |\n|----------|----------|---------|-------------|\n| \`SUPERMODEL_API_KEY\` | Yes | — | API key from [dashboard.supermodeltools.com](https://dashboard.supermodeltools.com) |\n| \`SUPERMODEL_BASE_URL\` | No | \`https://api.supermodeltools.com\` | Override API endpoint |\n| \`SUPERMODEL_CACHE_DIR\` | No | — | Directory for pre-computed graph cache files |\n| \`SUPERMODEL_TIMEOUT_MS\` | No | \`900000\` | API request timeout in milliseconds |\n| \`SUPERMODEL_NO_API_FALLBACK\` | No | — | Set to disable on-demand API calls (cache-only mode) |\n| \`SUPERMODEL_EXPERIMENT\` | No | — | Experiment mode (e.g. \`graphrag\`) |\n\n## CLI Usage\n\n\`\`\`bash\nnpx @supermodeltools/mcp-server [directory] [--precache]\n\`\`\`\n\n| Argument | Description |\n|----------|-------------|\n| \`directory\` | Default working directory for tool calls |\n| \`--precache\` | Generate and cache the graph for the directory on startup |\n\n## Pre-computing Graphs\n\n\`\`\`bash\nnpx @supermodeltools/mcp-server precache /path/to/repo --output-dir ./cache\n\`\`\`\n`,
+        }],
+      }),
+    );
+
+    this.server.resource(
+      'quickstart',
+      'supermodel://docs/quickstart',
+      {
+        description: 'Supermodel MCP Server quick start guide — install, configure, and start using in under 5 minutes',
+        mimeType: 'text/markdown',
+      },
+      async (uri) => ({
+        contents: [{
+          uri: uri.toString(),
+          mimeType: 'text/markdown',
+          text: `# Quick Start Guide\n\n## 1. Get an API Key\n\nSign up at [dashboard.supermodeltools.com](https://dashboard.supermodeltools.com) to get your free API key.\n\n## 2. Install\n\n\`\`\`bash\nnpm install -g @supermodeltools/mcp-server\n\`\`\`\n\nOr run directly with npx (no install needed):\n\n\`\`\`bash\nnpx @supermodeltools/mcp-server\n\`\`\`\n\n## 3. Add to Your MCP Client\n\n### Claude Code\n\n\`\`\`bash\nclaude mcp add supermodel --env SUPERMODEL_API_KEY=your-key -- npx -y @supermodeltools/mcp-server\n\`\`\`\n\n### Cursor\n\nAdd to \`~/.cursor/mcp.json\`:\n\n\`\`\`json\n{\n  "mcpServers": {\n    "supermodel": {\n      "command": "npx",\n      "args": ["-y", "@supermodeltools/mcp-server"],\n      "env": { "SUPERMODEL_API_KEY": "your-key" }\n    }\n  }\n}\n\`\`\`\n\n## 4. Use the Tools\n\n- **\`symbol_context\`**: Look up any function, class, or method with full caller/callee graph and source code\n- Supports batch lookups via the \`symbols\` array\n- Use \`brief: true\` for compact output when looking up 3+ symbols\n\n## Next Steps\n\n- Read the [configuration reference](supermodel://docs/configuration) for advanced options\n- Use \`precache\` to pre-compute graphs for faster responses\n- See the [GitHub repo](https://github.com/supermodeltools/mcp) for more\n`,
+        }],
+      }),
+    );
   }
 
   private getTestHint(primaryLanguage: string): string {

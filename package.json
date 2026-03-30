@@ -26,7 +26,7 @@
   "bugs": {
     "url": "https://github.com/supermodeltools/mcp/issues"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "keywords": [
     "mcp",
     "model-context-protocol",
