@@ -60,7 +60,7 @@ npx @supermodeltools/mcp-server
 
 ## Configuration
 
-Start your free trial at [supermodeltools.com/trial](https://supermodeltools.com/trial) to get an API key.
+**Save 40%+ on agent token costs — start free → [supermodeltools.com/trial](https://supermodeltools.com/trial)**
 
 | Variable | Description |
 |----------|-------------|
