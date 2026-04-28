@@ -60,7 +60,7 @@ npx @supermodeltools/mcp-server
 
 ## Configuration
 
-Get your API key from the [Supermodel Dashboard](https://dashboard.supermodeltools.com).
+Start your free trial at [supermodeltools.com/trial](https://supermodeltools.com/trial) to get an API key.
 
 | Variable | Description |
 |----------|-------------|
